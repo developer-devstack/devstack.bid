@@ -4,6 +4,7 @@ import { Footer, Header } from "@/components/header";
 import { Providers } from "@/components/providers";
 import { ActivityTracker } from "@/components/activity";
 import { BackgroundGlow } from "@/components/background-glow";
+import MyStatsig from "./my-statsig";
 import "./globals.css";
 
 // Inter (SF-like) for headings and body, IBM Plex Sans Thai for Thai glyphs, IBM Plex Mono for code
@@ -58,14 +59,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="flex min-h-full flex-col overflow-x-clip font-sans">
         <BackgroundGlow />
-        <Providers>
-          <Header />
-          <main id="main" tabIndex={-1} className="flex-1 outline-none">
-            {children}
-          </main>
-          <Footer />
-          <ActivityTracker />
-        </Providers>
+        <MyStatsig>
+          <Providers>
+            <Header />
+            <main id="main" tabIndex={-1} className="flex-1 outline-none">
+              {children}
+            </main>
+            <Footer />
+            <ActivityTracker />
+          </Providers>
+        </MyStatsig>
       </body>
     </html>
   );
