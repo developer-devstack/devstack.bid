@@ -22,15 +22,35 @@ export async function GET(req: Request) {
   if (!server.CURSOR_APP_ID || !secret) return oauthFail(url.origin, secure, "missing", "cursor");
   const burst = await checkRateLimit("NVX_CHAT_LIMITER", `authcb:${clientIp(req)}`, 10);
   if (!burst.ok) return oauthFail(url.origin, secure, "error", "cursor");
-  const cookie = readCookie(req.headers.get("cookie"), OAUTH_STATE_COOKIE);
-  const opened = cookie ? await readOAuthState(cookie, cookie, secret, "cursor") : null;
+
+  // Cursor may return `error` when the user denies the install.
+  if (url.searchParams.get("error")) return oauthFail(url.origin, secure, "denied", "cursor");
+
+  // Prefer the URL `state` Cursor echoes (and binds into the receipt JWT). The
+  // nvx_oauth_state cookie is often missing on Android after the cross-site
+  // round-trip even though other Path=/ cookies arrive — fail closed only when
+  // neither a signed query state nor a cookie is usable.
+  const queryState = url.searchParams.get("state") ?? "";
+  const cookie = readCookie(req.headers.get("cookie"), OAUTH_STATE_COOKIE) ?? "";
+  const signedState = queryState || cookie;
+  const opened = signedState ? await readOAuthState(signedState, cookie || undefined, secret, "cursor") : null;
   const receipt = url.searchParams.get("installation_receipt") ?? "";
-  if (!opened || !cookie || receipt.length < 20 || receipt.length > 8000) return oauthFail(url.origin, secure, "error", "cursor");
+  if (!opened || !signedState || receipt.length < 20 || receipt.length > 8000) {
+    console.warn(JSON.stringify({ at: "api/auth/cursor", event: "reject", reason: !opened ? "state" : "receipt" }));
+    return oauthFail(url.origin, secure, "error", "cursor");
+  }
   const { db } = await chatRuntime();
   if (!db) return oauthFail(url.origin, secure, "error", "cursor");
   try {
-    const identity = await verifyInstallationReceipt(receipt, { appId: server.CURSOR_APP_ID, keys: await originSigningKeys(), state: cookie });
-    if (!identity) return oauthFail(url.origin, secure, "error", "cursor");
+    const identity = await verifyInstallationReceipt(receipt, {
+      appId: server.CURSOR_APP_ID,
+      keys: await originSigningKeys(),
+      state: signedState,
+    });
+    if (!identity) {
+      console.warn(JSON.stringify({ at: "api/auth/cursor", event: "reject", reason: "receipt_verify" }));
+      return oauthFail(url.origin, secure, "error", "cursor");
+    }
     const plan = await planSignIn(db, req, secret, "cursor", identity.subject);
     await saveOAuthAccount(db, plan, {
       provider: "cursor",
