@@ -57,7 +57,13 @@ export async function issueOAuthState(secret: string, provider: AuthProvider, ne
   return { state, cookie };
 }
 
-/** Confirm the callback belongs to this browser and this provider. Returns the saved next path. */
+/**
+ * Confirm the callback belongs to this provider.
+ * Prefers matching the HMAC-signed URL state with the HttpOnly cookie (double-submit).
+ * When the cookie is missing — common after a long cross-site Origin install on mobile —
+ * the signed URL state alone is accepted; Cursor also echoes that state inside the
+ * installation-receipt JWT. PKCE verifiers still require the cookie.
+ */
 export async function readOAuthState(
   queryState: string,
   cookieState: string | undefined,
@@ -65,9 +71,13 @@ export async function readOAuthState(
   provider: AuthProvider
 ): Promise<{ next: string; verifier: string | null } | null> {
   const query = parseState(await verifyPayload(queryState, secret));
+  if (!query || query.p !== provider) return null;
+  if (!cookieState) {
+    return { next: query.r, verifier: null };
+  }
   const cookie = parseState(await verifyPayload(cookieState, secret));
-  if (!query || !cookie) return null;
-  if (query.p !== provider || cookie.p !== provider || query.n !== cookie.n || query.r !== cookie.r) return null;
+  if (!cookie) return null;
+  if (cookie.p !== provider || query.n !== cookie.n || query.r !== cookie.r) return null;
   return { next: query.r, verifier: cookie.c ?? null };
 }
 

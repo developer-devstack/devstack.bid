@@ -23,6 +23,21 @@ describe("sign-in state", () => {
     expect(pub.c).toBeUndefined();
   });
 
+  it("allows a missing cookie when the URL state is signed", async () => {
+    const { state } = await issueOAuthState(SECRET, "cursor", "/studio");
+    const opened = await readOAuthState(state, undefined, SECRET, "cursor");
+    expect(opened).toEqual({ next: "/studio", verifier: null });
+    expect(await readOAuthState(state, undefined, SECRET, "github")).toBeNull();
+    expect(await readOAuthState("not-a-signed-state", undefined, SECRET, "cursor")).toBeNull();
+  });
+
+  it("still rejects a cookie that does not match the URL state", async () => {
+    const a = await issueOAuthState(SECRET, "cursor", "/a");
+    const b = await issueOAuthState(SECRET, "cursor", "/b");
+    expect(await readOAuthState(a.state, b.cookie, SECRET, "cursor")).toBeNull();
+    expect(await readOAuthState(a.state, a.cookie, SECRET, "cursor")).toEqual({ next: "/a", verifier: null });
+  });
+
   it("links an anonymous row only before it has a provider", () => {
     expect(anonRowCanLink(null)).toBe(true);
     expect(anonRowCanLink({ auth_provider: null })).toBe(true);
