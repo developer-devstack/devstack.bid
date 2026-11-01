@@ -215,7 +215,7 @@ async function buildOne(db: D1Like, keys: SealKeys, b: BuildBindings, plan: GitP
     const r = await startContainerBuild(db, keys, b, uid, project, {
       ref: plan.branch, commit: plan.sha, environment, trigger: plan.kind,
       idempotencyKey: `gh:${environment}:${plan.branch}:${plan.sha}`,
-      // Webhook builds use the project owner's tier (buildsPerDay / buildsPerHour) and the KV hourly window.
+      // Webhook builds use the project owner's tier (buildsPerDay / buildsPerHour); hourly+daily counted in D1 (failed excluded).
       limits: await limitsForUser(db, uid), kv: b.kv ?? null,
     });
     const url = environment === "production" ? r.productionUrl : r.previewUrl;

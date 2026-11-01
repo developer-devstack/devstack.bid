@@ -5,14 +5,31 @@ export const MAX_CONCURRENT_BUILDS = 2;
 export const BUILD_TIMEOUT_MS = 15 * 60_000;
 export const DAILY_BUILDS_PER_USER = 10;
 const RUNNING = "('claimed','installing','building','uploading')";
+/** Terminal outcomes that do not consume build quota (retry after install_failed etc.). */
+const QUOTA_EXCLUDED = "('failed','canceled','timed_out')";
 
 export async function runningContainerBuilds(db: D1Like): Promise<number> {
   const r = await db.prepare(`SELECT COUNT(*) AS n FROM build_jobs WHERE executor = 'cf-container' AND status IN ${RUNNING}`).first<{ n: number }>();
   return Number(r?.n ?? 0);
 }
 
+/** Builds that count toward quota: queued / in-flight / succeeded. Failed, canceled, and timed_out do not. */
 export async function userBuildsToday(db: D1Like, uid: string, now = Date.now()): Promise<number> {
-  const r = await db.prepare("SELECT COUNT(*) AS n FROM build_jobs WHERE executor = 'cf-container' AND user_id = ?1 AND created_at > ?2").bind(uid, now - 86_400_000).first<{ n: number }>();
+  const r = await db
+    .prepare(`SELECT COUNT(*) AS n FROM build_jobs WHERE executor = 'cf-container' AND user_id = ?1 AND created_at > ?2 AND status NOT IN ${QUOTA_EXCLUDED}`)
+    .bind(uid, now - 86_400_000)
+    .first<{ n: number }>();
+  return Number(r?.n ?? 0);
+}
+
+/** Same exclusion as daily; fixed UTC hour bucket (matches former KV rl window). */
+export async function userBuildsThisHour(db: D1Like, uid: string, now = Date.now()): Promise<number> {
+  const windowSec = 3600;
+  const bucketStartMs = Math.floor(now / 1000 / windowSec) * windowSec * 1000;
+  const r = await db
+    .prepare(`SELECT COUNT(*) AS n FROM build_jobs WHERE executor = 'cf-container' AND user_id = ?1 AND created_at >= ?2 AND status NOT IN ${QUOTA_EXCLUDED}`)
+    .bind(uid, bucketStartMs)
+    .first<{ n: number }>();
   return Number(r?.n ?? 0);
 }
 
