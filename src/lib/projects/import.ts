@@ -107,7 +107,7 @@ export async function importRepo(
   // Slugs are globally unique (migration 0017): they become <slug>.devstack.bid. A lost race maps to 409.
   await db.batch([
     db.prepare(
-      "INSERT INTO projects (id, user_id, name, template_id, repo_full_name, default_branch, slug, source, root_directory, framework, install_command, build_command, output_directory, node_version, production_branch, provider, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, 'github_import', ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'cloudflare', ?14)"
+      "INSERT INTO projects (id, user_id, name, template_id, repo_full_name, default_branch, slug, source, root_directory, framework, install_command, build_command, output_directory, node_version, production_branch, provider, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, 'github_import', ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'devstack-sites', ?14)"
     ).bind(id, uid, slugV.slug, meta!.fullName, branch!, slugV.slug, root, c.framework, c.installCommand, c.buildCommand, c.outputDirectory, c.nodeVersion, branch!, now),
     db.prepare("INSERT INTO project_connections (id, project_id, user_id, provider, installation_id, repo_id, repo_full_name, private, can_push) VALUES (?1, ?2, ?3, 'github', NULL, ?4, ?5, ?6, ?7)")
       .bind(crypto.randomUUID(), id, uid, meta!.id, meta!.fullName, meta!.private ? 1 : 0, meta!.canPush ? 1 : 0),
@@ -119,6 +119,6 @@ export async function importRepo(
   return {
     id, user_id: uid, name: slugV.slug, template_id: null, repo_full_name: meta!.fullName, default_branch: branch!, created_at: now,
     slug: slugV.slug, source: "github_import", root_directory: root, framework: c.framework, install_command: c.installCommand,
-    build_command: c.buildCommand, output_directory: c.outputDirectory, node_version: c.nodeVersion, production_branch: branch!, provider: "cloudflare",
+    build_command: c.buildCommand, output_directory: c.outputDirectory, node_version: c.nodeVersion, production_branch: branch!, provider: "devstack-sites",
   };
 }

@@ -17,6 +17,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const REL = /^(?!\/)(?!.*\.\.)[A-Za-z0-9._\/-]{0,200}$/;
 const ENVKEY = /^[A-Z_][A-Z0-9_]{0,63}$/;
 const BLOCKED_ENV = new Set(["PATH", "HOME", "NODE_OPTIONS", "LD_PRELOAD", "LD_LIBRARY_PATH", "GIT_CONFIG_COUNT", "GIT_ASKPASS", "BASH_ENV", "ENV"]);
+const PUBLIC_NPM = "https://registry.npmjs.org/";
 
 function detectPm(dir) {
   if (existsSync(join(dir, "bun.lockb")) || existsSync(join(dir, "bun.lock"))) return { pm: "bun", install: "bun install --frozen-lockfile" };
@@ -25,6 +26,22 @@ function detectPm(dir) {
   if (existsSync(join(dir, "package-lock.json"))) return { pm: "npm", install: "npm ci" };
   if (existsSync(join(dir, "package.json"))) return { pm: "npm", install: "npm install" };
   return { pm: null, install: null };
+}
+
+/** Rewrite registry= in .npmrc / .yarnrc.yml under dir to the public npm registry (build-time only). */
+export function pinPublicRegistry(dir, emit) {
+  for (const name of [".npmrc", ".yarnrc", ".yarnrc.yml"]) {
+    const p = join(dir, name);
+    if (!existsSync(p)) continue;
+    const before = readFileSync(p, "utf8");
+    let after = before;
+    if (name === ".yarnrc.yml") after = before.replace(/(^|\n)\s*npmRegistryServer:\s*[^\n]+/g, `$1npmRegistryServer: "${PUBLIC_NPM}"`);
+    else after = before.replace(/(^|\n)\s*registry\s*=\s*[^\n]+/gi, `$1registry=${PUBLIC_NPM}`);
+    if (after !== before) {
+      writeFileSync(p, after);
+      if (emit) emit({ t: "log", phase: "installing", chunk: `Pinned ${name} registry to ${PUBLIC_NPM} for this build.\n` });
+    }
+  }
 }
 
 function run(cmd, args, opts, phase, emit) {
@@ -99,9 +116,11 @@ export function openNextInstallCmd(dir, pm) {
 async function build(spec, emit) {
   if (!REPO.test(spec.repo) || !SHA.test(spec.commit) || !REL.test(spec.root ?? "") || !REL.test(spec.output ?? "")) throw Object.assign(new Error("invalid build spec"), { code: "invalid_config" });
   mkdirSync(HOME_DIR, { recursive: true });
-  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false" };
+  // Force the public registry so a leftover private .npmrc / env cannot 403 installs (install_failed).
+  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null" };
   const userEnv = {};
-  for (const [k, v] of Object.entries(spec.env ?? {})) if (ENVKEY.test(k) && !BLOCKED_ENV.has(k) && typeof v === "string" && v.length <= 32_768) userEnv[k] = v;
+  const REGISTRY_ENV = /^(npm_config_registry|npm_config_always_auth|npm_config_userconfig|YARN_NPM_REGISTRY_SERVER|PNPM_REGISTRY)$/i;
+  for (const [k, v] of Object.entries(spec.env ?? {})) if (ENVKEY.test(k) && !BLOCKED_ENV.has(k) && !REGISTRY_ENV.test(k) && typeof v === "string" && v.length <= 32_768) userEnv[k] = v;
   // Token only reaches git, through config env vars (not argv, not the build's env).
   const gitEnv = { ...baseEnv, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: "2", GIT_CONFIG_KEY_0: "safe.directory", GIT_CONFIG_VALUE_0: SRC };
   if (spec.token) { gitEnv.GIT_CONFIG_KEY_1 = "http.https://github.com/.extraheader"; gitEnv.GIT_CONFIG_VALUE_1 = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${spec.token}`).toString("base64")}`; }
@@ -120,7 +139,9 @@ async function build(spec, emit) {
   scrubCheckout(SRC, spec.repo);
   const dir = normalize(join(SRC, spec.root || "."));
   if (!dir.startsWith(SRC) || !existsSync(dir)) return { ok: false, code: "invalid_config", message: "root directory not found" };
-  const env = { ...baseEnv, ...userEnv, NODE_ENV: "production" };
+  pinPublicRegistry(dir, emit);
+  // Re-assert public registry after user env so a project cannot redirect installs to a private host that 403s.
+  const env = { ...baseEnv, ...userEnv, NODE_ENV: "production", npm_config_registry: PUBLIC_NPM, YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_always_auth: "false" };
   const detected = detectPm(dir);
   const install = spec.install || detected.install;
   if (install) {

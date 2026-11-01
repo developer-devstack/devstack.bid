@@ -71,6 +71,6 @@ export const projectView = (p: ProjectRow) => ({
   framework: p.framework ?? null,
   build: { installCommand: p.install_command ?? null, buildCommand: p.build_command ?? null, outputDirectory: p.output_directory ?? null, nodeVersion: p.node_version ?? null },
   productionBranch: p.production_branch ?? p.default_branch,
-  provider: p.provider ?? "cloudflare",
+  provider: p.provider ?? "devstack-sites",
   createdAt: p.created_at,
 });
