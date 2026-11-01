@@ -12,15 +12,39 @@ function parseBlock(css: string, selector: string): Record<string, string> {
 }
 
 type RGBA = [number, number, number, number];
-/** Parses #rrggbb and `rgb(r g b / a)`. */
+/** oklch → sRGB (CSS Color 4), channels 0–255. */
+function oklchToSrgb(L: number, C: number, H: number): [number, number, number] {
+  const h = (H * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.291485548 * b;
+  const [l, m, s] = [l_, m_, s_].map((c) => c ** 3);
+  let r = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  let bl = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s;
+  const toSrgb = (c: number) => {
+    const clipped = Math.min(1, Math.max(0, c));
+    const enc = clipped <= 0.0031308 ? 12.92 * clipped : 1.055 * clipped ** (1 / 2.4) - 0.055;
+    return Math.round(enc * 255);
+  };
+  return [toSrgb(r), toSrgb(g), toSrgb(bl)];
+}
+/** Parses #rrggbb, `rgb(r g b / a)`, and `oklch(L C H[/A])`. */
 function parseColor(value: string): RGBA {
   if (value.startsWith("#")) {
     const n = value.slice(1);
     return [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16)).concat(1) as RGBA;
   }
-  const m = value.match(/rgb\(\s*(\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\s*\)/);
-  if (!m) throw new Error(`Unsupported colour: ${value}`);
-  return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] ? Number(m[4]) : 1];
+  const rgb = value.match(/rgb\(\s*(\d+)\s+(\d+)\s+(\d+)(?:\s*\/\s*([\d.]+))?\s*\)/);
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3]), rgb[4] ? Number(rgb[4]) : 1];
+  const ok = value.match(/oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.%]+))?\s*\)/);
+  if (ok) {
+    const alpha = ok[4] ? (ok[4].endsWith("%") ? Number(ok[4].slice(0, -1)) / 100 : Number(ok[4])) : 1;
+    return [...oklchToSrgb(Number(ok[1]), Number(ok[2]), Number(ok[3])), alpha] as RGBA;
+  }
+  throw new Error(`Unsupported colour: ${value}`);
 }
 /** Composite a (possibly translucent) colour over an opaque backdrop. */
 function over([r, g, b, a]: RGBA, [br, bg, bb]: RGBA): RGBA {

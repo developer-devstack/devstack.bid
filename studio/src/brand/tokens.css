@@ -4,38 +4,65 @@
  * typography and motion. Components only use semantic tokens (bg-surface,
  * text-muted, bg-primary …), never raw palette colours.
  *
- * v0.5 "developer" theme, referencing developer.apple.com: black-first. The DARK block (.dark)
- * is the default for everyone (<html class="dark"> is server-rendered). :root holds the light
- * variant that the theme toggle switches to.
- *
- * v0.9 monochrome (owner decision, 2026-10-15): a white light theme and a black dark theme built
- * from neutral greys only. `primary` = filled call-to-action (black pill in light, white pill in
- * dark); `link` and `accent` = the foreground colour (links are underlined so they stay
- * distinguishable without hue). Status colours (success/warning/danger) stay for meaning only.
- * The pink mascot image is unchanged; accent colours come back in a later phase.
+ * Theme base: shadcn "neutral" (oklch). :root = light; .dark = dark (default —
+ * <html class="dark"> is server-rendered). Standard shadcn variables and NVX
+ * semantic tokens share the same palette so existing utilities follow the theme.
+ * Status / brand / code / ambient tokens stay NVX-specific where needed.
  */
 
 :root {
-  /* Surfaces */
-  --nvx-bg: #ffffff;
-  --nvx-surface: #ffffff;
-  --nvx-surface-2: #f5f5f5;
-  --nvx-surface-3: #e5e5e5;
-  --nvx-raised: #ffffff;
-  --nvx-border: #e5e5e5;
-  --nvx-border-strong: #a3a3a3;
-  /* Text */
-  --nvx-fg: #0a0a0a;
-  --nvx-muted: #404040;
-  --nvx-subtle: #525252;
-  /* Brand */
-  --nvx-primary: #171717;
-  --nvx-primary-hover: #404040;
-  --nvx-primary-fg: #ffffff;
-  --nvx-primary-soft: #f5f5f5;
-  --nvx-primary-soft-fg: #171717;
-  --nvx-link: #171717;
-  --nvx-accent: #171717;
+  /* ---- shadcn neutral (exact) ---- */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* ---- NVX semantic (same palette; concrete values for contrast checks) ---- */
+  --nvx-bg: oklch(1 0 0);
+  --nvx-surface: oklch(1 0 0);
+  --nvx-surface-2: oklch(0.97 0 0);
+  --nvx-surface-3: oklch(0.922 0 0);
+  --nvx-raised: oklch(1 0 0);
+  --nvx-border: oklch(0.922 0 0);
+  --nvx-border-strong: oklch(0.439 0 0);
+  --nvx-fg: oklch(0.145 0 0);
+  --nvx-muted: oklch(0.556 0 0);
+  --nvx-subtle: oklch(0.439 0 0);
+  --nvx-primary: oklch(0.205 0 0);
+  --nvx-primary-hover: oklch(0.371 0 0);
+  --nvx-primary-fg: oklch(0.985 0 0);
+  --nvx-primary-soft: oklch(0.97 0 0);
+  --nvx-primary-soft-fg: oklch(0.205 0 0);
+  --nvx-link: oklch(0.145 0 0);
+  --nvx-accent: oklch(0.145 0 0);
   /* Status */
   --nvx-success: #157a32;
   --nvx-success-soft: #e5f5e9;
@@ -43,46 +70,38 @@
   --nvx-warning: #9a5b00;
   --nvx-warning-soft: #fdf1dc;
   --nvx-warning-fg: #7a4800;
-  --nvx-danger: #d70015;
-  --nvx-danger-hover: #b00011;
-  --nvx-danger-soft: #fde8ea;
-  --nvx-danger-fg: #a30010;
-  --nvx-info: #404040;
-  --nvx-info-soft: #f5f5f5;
-  --nvx-info-fg: #262626;
+  --nvx-danger: oklch(0.577 0.245 27.325);
+  --nvx-danger-hover: oklch(0.5 0.22 27);
+  --nvx-danger-soft: oklch(0.95 0.04 27);
+  --nvx-danger-fg: oklch(0.45 0.2 27);
+  --nvx-info: oklch(0.556 0 0);
+  --nvx-info-soft: oklch(0.97 0 0);
+  --nvx-info-fg: oklch(0.269 0 0);
   /* Focus + code (code windows are always dark) */
-  --nvx-ring: #171717;
-  --nvx-code-bg: #171717;
-  --nvx-code-fg: #fafafa;
-  --nvx-code-prompt: #d4d4d4;
-  --nvx-code-muted: #a3a3a3;
-  --nvx-code-border: #262626;
+  --nvx-ring: oklch(0.371 0 0);
+  --nvx-code-bg: oklch(0.205 0 0);
+  --nvx-code-fg: oklch(0.985 0 0);
+  --nvx-code-prompt: oklch(0.87 0 0);
+  --nvx-code-muted: oklch(0.708 0 0);
+  --nvx-code-border: oklch(0.269 0 0);
   --nvx-overlay: rgb(0 0 0 / 0.4);
-  /* macOS window chrome on code windows */
-  --nvx-chrome-close: #737373;
-  --nvx-chrome-min: #737373;
-  --nvx-chrome-zoom: #737373;
-  /* Brand mascot accent (measured from the logo). Decorative only: never for text or UI states;
-     the interactive colour system stays blue (primary / link). */
+  --nvx-chrome-close: oklch(0.556 0 0);
+  --nvx-chrome-min: oklch(0.556 0 0);
+  --nvx-chrome-zoom: oklch(0.556 0 0);
   --nvx-brand-pink: #fb0fab;
   --nvx-brand-glow: rgb(251 15 171 / 0.35);
-  /* App-icon tiles */
-  --nvx-tile-top: #ffffff;
-  --nvx-tile-bottom: #f5f5f5;
+  --nvx-tile-top: oklch(1 0 0);
+  --nvx-tile-bottom: oklch(0.97 0 0);
   --nvx-tile-edge: rgb(0 0 0 / 0.08);
   --nvx-tile-sheen: rgb(255 255 255 / 0.9);
-  /* Hero glow */
   --nvx-glow-1: rgb(0 0 0 / 0);
   --nvx-glow-2: rgb(0 0 0 / 0);
-  /* Site-wide ambient layer (src/components/background-glow.tsx). Decorative only. */
   --nvx-ambient-warm: rgb(255 138 61 / 0.07);
   --nvx-ambient-pink: rgb(251 15 171 / 0.03);
   --nvx-spot: rgb(255 150 80 / 0.06);
-  /* Shadows */
   --nvx-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
   --nvx-shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.1);
   --nvx-shadow-lg: 0 20px 48px -16px rgb(0 0 0 / 0.22);
-  /* Motion */
   --nvx-duration-fast: 120ms;
   --nvx-duration-base: 200ms;
   --nvx-duration-slow: 320ms;
@@ -92,53 +111,80 @@
 }
 
 .dark {
-  /* Surfaces: black page, graphite cards */
-  /* v0.10 (owner request 2026-10-17: "background too dark"): lifted from pure black to a soft
-     graphite so the warm ambient glow reads. Text contrast stays well above WCAG AA. */
-  --nvx-bg: #0c0c0e;
-  --nvx-surface: #121214;
-  --nvx-surface-2: #1b1b1e;
-  --nvx-surface-3: #28282c;
-  --nvx-raised: #313136;
-  --nvx-border: #2a2a2e;
-  --nvx-border-strong: #56565c;
-  /* Text */
-  --nvx-fg: #fafafa;
-  --nvx-muted: #d4d4d4;
-  --nvx-subtle: #a3a3a3;
-  /* Brand */
-  --nvx-primary: #fafafa;
-  --nvx-primary-hover: #d4d4d4;
-  --nvx-primary-fg: #0a0a0a;
-  --nvx-primary-soft: rgb(255 255 255 / 0.08);
-  --nvx-primary-soft-fg: #fafafa;
-  --nvx-link: #fafafa;
-  --nvx-accent: #fafafa;
-  /* Status (Apple system colours, dark) */
+  /* ---- shadcn neutral dark (exact) ---- */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+
+  /* ---- NVX semantic dark ---- */
+  --nvx-bg: oklch(0.145 0 0);
+  --nvx-surface: oklch(0.205 0 0);
+  --nvx-surface-2: oklch(0.269 0 0);
+  --nvx-surface-3: oklch(0.371 0 0);
+  --nvx-raised: oklch(0.371 0 0);
+  --nvx-border: oklch(1 0 0 / 10%);
+  --nvx-border-strong: oklch(0.556 0 0);
+  --nvx-fg: oklch(0.985 0 0);
+  --nvx-muted: oklch(0.708 0 0);
+  --nvx-subtle: oklch(0.708 0 0);
+  --nvx-primary: oklch(0.922 0 0);
+  --nvx-primary-hover: oklch(0.708 0 0);
+  --nvx-primary-fg: oklch(0.205 0 0);
+  --nvx-primary-soft: oklch(1 0 0 / 8%);
+  --nvx-primary-soft-fg: oklch(0.985 0 0);
+  --nvx-link: oklch(0.985 0 0);
+  --nvx-accent: oklch(0.985 0 0);
   --nvx-success: #32d74b;
   --nvx-success-soft: rgb(50 215 75 / 0.14);
   --nvx-success-fg: #7ee38f;
   --nvx-warning: #ffd60a;
   --nvx-warning-soft: rgb(255 214 10 / 0.13);
   --nvx-warning-fg: #ffe36b;
-  --nvx-danger: #ff453a;
-  --nvx-danger-hover: #ff6961;
-  --nvx-danger-soft: rgb(255 69 58 / 0.15);
-  --nvx-danger-fg: #ff8f88;
-  --nvx-info: #d4d4d4;
-  --nvx-info-soft: rgb(255 255 255 / 0.08);
-  --nvx-info-fg: #e5e5e5;
-  --nvx-ring: #fafafa;
-  --nvx-code-bg: #0a0a0a;
-  --nvx-code-border: #262626;
+  --nvx-danger: oklch(0.704 0.191 22.216);
+  --nvx-danger-hover: oklch(0.75 0.18 22);
+  --nvx-danger-soft: oklch(0.3 0.08 22);
+  --nvx-danger-fg: oklch(0.8 0.12 22);
+  --nvx-info: oklch(0.87 0 0);
+  --nvx-info-soft: oklch(1 0 0 / 8%);
+  --nvx-info-fg: oklch(0.922 0 0);
+  --nvx-ring: oklch(0.556 0 0);
+  --nvx-code-bg: oklch(0.145 0 0);
+  --nvx-code-border: oklch(0.269 0 0);
   --nvx-overlay: rgb(0 0 0 / 0.7);
-  --nvx-tile-top: #262626;
-  --nvx-tile-bottom: #171717;
+  --nvx-tile-top: oklch(0.269 0 0);
+  --nvx-tile-bottom: oklch(0.205 0 0);
   --nvx-tile-edge: rgb(255 255 255 / 0.1);
   --nvx-tile-sheen: rgb(255 255 255 / 0.12);
   --nvx-glow-1: rgb(255 138 61 / 0.1);
   --nvx-glow-2: rgb(251 15 171 / 0.05);
-  /* Site-wide ambient layer (src/components/background-glow.tsx). Decorative only. */
   --nvx-ambient-warm: rgb(255 138 61 / 0.11);
   --nvx-ambient-pink: rgb(251 15 171 / 0.045);
   --nvx-spot: rgb(255 176 120 / 0.07);
