@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifyInstallationReceipt, type OriginJwk } from "@/lib/auth/cursor-receipt";
+import { clearOriginSigningKeysCacheForTests, originSigningKeys, verifyInstallationReceipt, type OriginJwk } from "@/lib/auth/cursor-receipt";
 import { anonRowCanLink, issueOAuthState, readOAuthState, safeAvatar } from "@/lib/auth/oauth-flow";
 import { acceptPassword, hashPassword, normalizeEmail, passwordMatches } from "@/lib/auth/password";
 import { verifyPayload } from "@/lib/chat/identity";
@@ -97,5 +97,41 @@ describe("Cursor installation receipt", () => {
     expect(await verifyInstallationReceipt(jwt, { appId: "app_01example", keys, now, state: "other" })).toBeNull();
     expect(await verifyInstallationReceipt(jwt, { appId: "app_01other", keys, now, state })).toBeNull();
     expect(await verifyInstallationReceipt(jwt, { appId: "app_01example", keys, now: now + 10_000, state })).toBeNull();
+  });
+});
+
+describe("Cursor Origin JWKS fetch", () => {
+  it("originSigningKeys recovers from 525 via the socket fallback", async () => {
+    clearOriginSigningKeysCacheForTests();
+    const keysBody = {
+      keys: [{ kty: "OKP", crv: "Ed25519", kid: "k1", x: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }],
+    };
+    const f = (async () => new Response("", { status: 525 })) as unknown as typeof fetch;
+    const sock = async () => new Response(JSON.stringify(keysBody), { status: 200, headers: { "Content-Type": "application/json" } });
+    const keys = await originSigningKeys(Date.now(), { f, socket: sock });
+    expect(keys).toHaveLength(1);
+    expect(keys[0]?.kid).toBe("k1");
+  });
+
+  it("originSigningKeys uses fetch when it succeeds and does not call the socket", async () => {
+    clearOriginSigningKeysCacheForTests();
+    const keysBody = {
+      keys: [{ kty: "OKP", crv: "Ed25519", kid: "k2", x: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" }],
+    };
+    const sock = async () => {
+      throw new Error("socket should not run");
+    };
+    const f = (async () => new Response(JSON.stringify(keysBody), { status: 200 })) as unknown as typeof fetch;
+    const keys = await originSigningKeys(Date.now(), { f, socket: sock });
+    expect(keys[0]?.kid).toBe("k2");
+  });
+
+  it("originSigningKeys throws jwks:525 when both fetch and socket fail the handshake", async () => {
+    clearOriginSigningKeysCacheForTests();
+    const f = (async () => new Response("", { status: 525 })) as unknown as typeof fetch;
+    const sock = async () => {
+      throw new Error("no socket");
+    };
+    await expect(originSigningKeys(Date.now(), { f, socket: sock })).rejects.toThrow(/jwks:525/);
   });
 });

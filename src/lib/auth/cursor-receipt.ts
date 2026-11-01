@@ -7,6 +7,7 @@
  */
 
 import { normalizeEmail } from "@/lib/auth/password";
+import { socketFetch } from "@/lib/server/socket-fetch";
 
 export interface OriginJwk {
   kty: string;
@@ -71,11 +72,16 @@ export async function verifyInstallationReceipt(
   if (header.alg !== "EdDSA" || header.typ !== TYP || typeof header.kid !== "string") return null;
   const jwk = opts.keys.find((k) => k.kid === header.kid && k.kty === "OKP" && k.crv === "Ed25519" && typeof k.x === "string" && k.x.length > 0);
   if (!jwk) return null;
-  const key = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: jwk.x }, { name: "Ed25519" }, false, ["verify"]);
-  const data = new TextEncoder().encode(`${h}.${p}`);
-  const signature = new ArrayBuffer(sig.byteLength);
-  new Uint8Array(signature).set(sig);
-  const ok = await crypto.subtle.verify({ name: "Ed25519" }, key, signature, data);
+  let ok = false;
+  try {
+    const key = await crypto.subtle.importKey("jwk", { kty: "OKP", crv: "Ed25519", x: jwk.x }, { name: "Ed25519" }, false, ["verify"]);
+    const data = new TextEncoder().encode(`${h}.${p}`);
+    const signature = new ArrayBuffer(sig.byteLength);
+    new Uint8Array(signature).set(sig);
+    ok = await crypto.subtle.verify({ name: "Ed25519" }, key, signature, data);
+  } catch {
+    return null;
+  }
   if (!ok) return null;
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   if (claims.iss !== ISSUER || claims.aud !== opts.appId) return null;
@@ -94,19 +100,40 @@ export async function verifyInstallationReceipt(
 
 let keyCache: { keys: OriginJwk[]; at: number } | null = null;
 
+const JWKS_URL = "https://api.cursor.com/v1/origin/keys";
+
+export type OriginKeysDeps = {
+  f?: typeof fetch;
+  /** 525 fallback (same cloudflare/workerd#7042 path GitHub uses from custom domains). */
+  socket?: (input: string, init: RequestInit) => Promise<Response>;
+};
+
+/** fetch Origin JWKS; on custom-domain Workers, api.cursor.com often returns 525 — retry once over a raw TLS socket. */
+async function fetchOriginJwks(deps: OriginKeysDeps = {}): Promise<Response> {
+  const init: RequestInit = { headers: { Accept: "application/json" } };
+  const res = await (deps.f ?? fetch)(JWKS_URL, init);
+  if (res.status !== 525) return res;
+  return (deps.socket ?? socketFetch)(JWKS_URL, init).catch(() => res);
+}
+
 /** Origin's public Ed25519 keys. Cached for 10 minutes, stale up to 20 if a refresh fails. */
-export async function originSigningKeys(now = Date.now()): Promise<OriginJwk[]> {
+export async function originSigningKeys(now = Date.now(), deps: OriginKeysDeps = {}): Promise<OriginJwk[]> {
   if (keyCache && now - keyCache.at < 600_000) return keyCache.keys;
   try {
-    const res = await fetch("https://api.cursor.com/v1/origin/keys", { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error("jwks");
+    const res = await fetchOriginJwks(deps);
+    if (!res.ok) throw new Error(`jwks:${res.status}`);
     const body = (await res.json()) as { keys?: OriginJwk[] };
     const keys = (body.keys ?? []).filter((k) => k && k.kty === "OKP" && k.crv === "Ed25519" && k.kid && k.x);
-    if (!keys.length) throw new Error("jwks");
+    if (!keys.length) throw new Error("jwks:empty");
     keyCache = { keys, at: now };
     return keys;
   } catch (err) {
     if (keyCache && now - keyCache.at < 1_200_000) return keyCache.keys;
     throw err;
   }
+}
+
+/** Test helper: clear the in-memory JWKS cache. */
+export function clearOriginSigningKeysCacheForTests(): void {
+  keyCache = null;
 }

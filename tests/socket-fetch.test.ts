@@ -32,9 +32,18 @@ describe("socketFetch (525 fallback)", () => {
     expect(head.endsWith("code=abc")).toBe(true);
   });
 
-  it("refuses non-GitHub hosts and header injection", async () => {
+  it("refuses disallowed hosts and header injection; allows api.cursor.com", async () => {
     await expect(socketFetch("https://evil.example/", {}, fakeConnect("", []))).rejects.toThrow(/not allowed/);
     await expect(socketFetch("http://github.com/", {}, fakeConnect("", []))).rejects.toThrow(/not allowed/);
+    const sent: string[] = [];
+    const res = await socketFetch(
+      "https://api.cursor.com/v1/origin/keys",
+      { headers: { Accept: "application/json" } },
+      fakeConnect('HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{"keys":[]}', sent),
+    );
+    expect(res.status).toBe(200);
+    expect(sent.join("")).toMatch(/^GET \/v1\/origin\/keys HTTP\/1\.1/);
+    expect(sent.join("")).toMatch(/host: api\.cursor\.com/i);
   });
 
   it("fetchRetry falls back to the socket on 525 only", async () => {
