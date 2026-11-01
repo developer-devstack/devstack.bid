@@ -63,7 +63,8 @@ export async function GET(req: Request) {
     console.warn(JSON.stringify({ at: "api/auth/cursor", event: "linked" }));
     return signedInRedirect(url.origin, secure, opened.next, await issueSession(db, plan.userId, secret));
   } catch (err) {
-    console.warn(JSON.stringify({ at: "api/auth/cursor", event: "failed", name: (err as Error)?.name }));
+    const msg = err instanceof Error ? `${err.name}:${err.message}`.slice(0, 120) : "unknown";
+    console.warn(JSON.stringify({ at: "api/auth/cursor", event: "failed", name: msg }));
     return oauthFail(url.origin, secure, "error", "cursor");
   }
 }

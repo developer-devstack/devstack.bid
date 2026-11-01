@@ -2,7 +2,7 @@
  * Fallback HTTPS client over `cloudflare:sockets` connect().
  *
  * Why: on a Worker served from a custom domain, outbound fetch() to some origins
- * (github.com among them) fails with HTTP 525 because of a TLS key-group bug at
+ * (github.com, api.cursor.com among them) fails with HTTP 525 because of a TLS key-group bug at
  * Cloudflare's edge (cloudflare/workerd#7042). connect() with secureTransport "on"
  * completes the handshake. We only use it after fetch() returned 525.
  */
@@ -14,7 +14,7 @@ type SocketLike = {
 };
 export type ConnectFn = (address: { hostname: string; port: number }, options: { secureTransport: "on"; allowHalfOpen: boolean }) => SocketLike;
 
-const ALLOWED_HOSTS = new Set(["github.com", "api.github.com"]);
+const ALLOWED_HOSTS = new Set(["github.com", "api.github.com", "api.cursor.com"]);
 const MAX_BYTES = 10_000_000;
 export const SOCKET_TIMEOUT_MS = 15_000;
 
@@ -87,7 +87,7 @@ export function parseHttpResponse(raw: Uint8Array): Response {
   return new Response(nullBody ? null : (body.slice() as Uint8Array<ArrayBuffer>), { status, headers });
 }
 
-/** Minimal HTTPS request over a raw TLS socket. Only for allow-listed GitHub hosts. */
+/** Minimal HTTPS request over a raw TLS socket. Only for allow-listed hosts (GitHub + Cursor Origin JWKS). */
 export async function socketFetch(input: string, init: RequestInit = {}, connectFn?: ConnectFn, timeoutMs = SOCKET_TIMEOUT_MS): Promise<Response> {
   const url = new URL(input);
   if (url.protocol !== "https:" || !ALLOWED_HOSTS.has(url.hostname)) throw new Error("socketFetch: host not allowed");
