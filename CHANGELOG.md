@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Build quota no longer counts `failed` / `canceled` / `timed_out` jobs (daily + hourly, D1). Retries after
+  `install_failed` no longer burn the free-tier 3/hour cap. Hourly hard limit moved from Workers KV to D1
+  (same UTC hour bucket).
+- `DEVSTACK_ADMIN_GITHUB_IDS` includes GitHub id `312459747` (@z-ey3eiei) alongside `326990420` (@thanabartbb).
+
 ## [0.13.0-rc.3] - 2026-10-22
 
 ### Fixed (Subdev + Supdev review of rc.2)

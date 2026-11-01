@@ -107,22 +107,24 @@ describe("build executor", () => {
     expect(r.job.config_snapshot).not.toMatch(/gho_/);
   });
 
-  it("tier caps: hourly KV window consumed only after token/ref checks; per-tier daily/hourly limits apply", async () => {
-    const store = new Map<string, string>();
-    const kv = { get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => void store.set(k, v) };
+  it("tier caps: D1 hourly/daily after token/ref checks; failed builds do not consume quota", async () => {
     const lim = { buildsPerDay: 10, buildsPerHour: 1 };
     const noTok = await setup({});
     const p0 = noTok.raw.prepare("SELECT * FROM projects WHERE id = 'projA-0001'").get() as never;
-    await expect(startContainerBuild(noTok, keys, bindings(scripted([])), "userA", p0, { limits: lim, kv }, async () => SHA)).rejects.toMatchObject({ code: "reauth" });
-    await expect(startContainerBuild(noTok, keys, bindings(scripted([])), "userA", p0, { limits: lim, kv }, async () => null)).rejects.toBeTruthy();
-    expect([...store.values()]).toEqual([]);
+    await expect(startContainerBuild(noTok, keys, bindings(scripted([])), "userA", p0, { limits: lim }, async () => SHA)).rejects.toMatchObject({ code: "reauth" });
+    await expect(startContainerBuild(noTok, keys, bindings(scripted([])), "userA", p0, { limits: lim }, async () => null)).rejects.toBeTruthy();
+    expect((noTok.raw.prepare("SELECT COUNT(*) n FROM build_jobs").get() as { n: number }).n).toBe(0);
     const db = await setup({ token: "gho_" + "a".repeat(36) });
     const p = db.raw.prepare("SELECT * FROM projects WHERE id = 'projA-0001'").get() as never;
-    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim, kv }, async () => null)).rejects.toMatchObject({ status: 404 });
-    expect([...store.values()]).toEqual([]);
-    await startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim, kv }, async () => SHA);
-    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim, kv, ref: "dev" }, async () => "b".repeat(40))).rejects.toMatchObject({ code: "limit", status: 429 });
-    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: { buildsPerDay: 1, buildsPerHour: 99 }, kv }, async () => "c".repeat(40))).rejects.toMatchObject({ code: "limit" });
+    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim }, async () => null)).rejects.toMatchObject({ status: 404 });
+    expect((db.raw.prepare("SELECT COUNT(*) n FROM build_jobs").get() as { n: number }).n).toBe(0);
+    const first = await startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim }, async () => SHA);
+    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim, ref: "dev" }, async () => "b".repeat(40))).rejects.toMatchObject({ code: "limit", status: 429 });
+    await expect(startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: { buildsPerDay: 1, buildsPerHour: 99 } }, async () => "c".repeat(40))).rejects.toMatchObject({ code: "limit" });
+    // Mark the in-flight/queued job failed → quota frees for retry (install_failed case).
+    db.raw.prepare("UPDATE build_jobs SET status = 'failed', error_code = 'install_failed' WHERE id = ?").run(first.job.id);
+    const retry = await startContainerBuild(db, keys, bindings(scripted([])), "userA", p, { limits: lim, ref: "dev" }, async () => "d".repeat(40));
+    expect(retry.job.status).toBe("queued");
   });
 
   it("runs a build: phases, redacted streamed logs (split secrets), R2 artifact + site, Blocked URL until DNS", async () => {

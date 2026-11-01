@@ -6,7 +6,8 @@
  * DEPRECATED: AISITE_ADMIN_LOGINS / DEVSTACK_PAID_LOGINS (login lists) are still honoured for tiers only when
  * DEVSTACK_TIER_ALLOW_LOGINS=1, because a GitHub login can be released and re-registered by someone else.
  * Everyone else → free. Each number can be overridden with DEVSTACK_TIER_<TIER>_<FIELD> (e.g. DEVSTACK_TIER_FREE_AI_PER_DAY).
- * Daily caps are counted in D1 (hard); hourly burst caps use Workers KV (soft, see kv-limit.ts).
+ * Daily and hourly build caps are counted in D1 (hard; failed/canceled/timed_out builds do not count).
+ * AI per-minute burst still uses Workers KV (soft, see kv-limit.ts). buildHourKey remains for legacy callers.
  */
 import { isAdmin } from "@/lib/aisite/admin";
 import type { D1Like } from "@/lib/chat/store";
@@ -69,6 +70,6 @@ export async function limitsForUser(db: D1Like, uid: string, env: Env = procEnv(
   return limitsFor(await identityOf(db, uid), env);
 }
 
-/** KV key for the hourly build window (shared by the pre-check and the consuming check). */
+/** Legacy KV key for the hourly build window (build quota itself is D1-backed in caps.ts). */
 export const buildHourKey = (uid: string) => `build-h:${uid}`;
 export const buildHourOk = (kv: KvLike | null, uid: string, l: TierLimits, now = Date.now()) => kvRateLimit(kv, buildHourKey(uid), l.buildsPerHour, 3600, now);

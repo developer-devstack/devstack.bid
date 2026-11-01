@@ -382,7 +382,6 @@ describe("rc.3: one AI turn = one build job + one quota count", () => {
   it("sync merge is skipped by the webhook; route + webhook builds of the AI commit dedupe", async () => {
     const { startContainerBuild } = await import("@/lib/build/executor");
     const { AI_BRANCH, aiTurnBuildKey, rememberSyncMerge, isSyncMerge } = await import("@/lib/aisite/repo-turn");
-    const { buildHourKey } = await import("@/lib/limits/tiers");
     const store = new Map<string, string>();
     const kv = { get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => { store.set(k, v); } };
     const db = await setup();
@@ -399,7 +398,9 @@ describe("rc.3: one AI turn = one build job + one quota count", () => {
     expect(w.buildJobId).toBe(r.job.id);
     expect((db.raw.prepare("SELECT count(*) n FROM build_jobs").get() as { n: number }).n).toBe(1);
     expect(b.sent).toHaveLength(1);
-    const hour = [...store.entries()].filter(([k]) => k.startsWith(`rl:${buildHourKey("userA")}:`));
-    expect(hour.map(([, v]) => v)).toEqual(["1"]);
+    // Quota is D1-backed: one queued job counts once toward the hour/day (no KV burn).
+    const { userBuildsThisHour, userBuildsToday } = await import("@/lib/build/caps");
+    expect(await userBuildsThisHour(db, "userA")).toBe(1);
+    expect(await userBuildsToday(db, "userA")).toBe(1);
   });
 });

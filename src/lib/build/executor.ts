@@ -23,10 +23,9 @@ import { getProjectSourceTar, sourceTarKey } from "@/lib/hosting/sources";
 import { CfApiError, deployServerWorker, readServerBundle, serverWorkerName, type CfApi } from "@/lib/hosting/server-worker";
 import { sanitizeLog } from "@/lib/deploy/sanitize";
 import type { R2BucketLike } from "@/lib/hosting/serve";
-import { kvRateLimit, type KvLike } from "@/lib/aisite/kv-limit";
-import { buildHourKey, limitsForUser, type TierLimits } from "@/lib/limits/tiers";
-import { kvHasRoom } from "@/lib/aisite/kv-limit";
-import { BUILD_TIMEOUT_MS, claimWithCap, userBuildsToday } from "./caps";
+import type { KvLike } from "@/lib/aisite/kv-limit";
+import { limitsForUser, type TierLimits } from "@/lib/limits/tiers";
+import { BUILD_TIMEOUT_MS, claimWithCap, userBuildsThisHour, userBuildsToday } from "./caps";
 import { appendEvent, createBuildJob, createLogStream, failJob, finishCanceled, heartbeat, transitionJob, type BuildJobRow, type Environment } from "./jobs";
 import type { BuildState } from "./state";
 import { readTar } from "./tar";
@@ -50,9 +49,9 @@ export interface BuildBindings {
 }
 
 /** Read-only build quota check (daily D1 + hourly KV) used before spending an AI turn. */
-export async function buildQuotaRoom(db: D1Like, kv: KvLike | null, uid: string, lim: Pick<TierLimits, "buildsPerDay" | "buildsPerHour">): Promise<string | null> {
+export async function buildQuotaRoom(db: D1Like, _kv: KvLike | null, uid: string, lim: Pick<TierLimits, "buildsPerDay" | "buildsPerHour">): Promise<string | null> {
   if ((await userBuildsToday(db, uid)) >= lim.buildsPerDay) return `Daily build limit reached (${lim.buildsPerDay}/day). / ครบโควตา build วันนี้แล้ว`;
-  if (!(await kvHasRoom(kv, buildHourKey(uid), lim.buildsPerHour, 3600))) return `Hourly build limit reached (${lim.buildsPerHour}/hour). / build ถี่เกินไป รอสักครู่`;
+  if ((await userBuildsThisHour(db, uid)) >= lim.buildsPerHour) return `Hourly build limit reached (${lim.buildsPerHour}/hour). / build ถี่เกินไป รอสักครู่`;
   return null;
 }
 
@@ -99,7 +98,7 @@ export async function startContainerBuild(
     }
   }
   const lim = opts.limits ?? (await limitsForUser(db, uid));
-  const kv = opts.kv ?? b.kv ?? null;
+  // opts.kv / b.kv retained for callers; hourly quota is hard-counted in D1 (failed builds excluded).
   if ((await userBuildsToday(db, uid)) >= lim.buildsPerDay) throw new ServiceError("limit", `Daily build limit reached (${lim.buildsPerDay}/day). / ครบโควตา build วันนี้แล้ว`, 429);
 
   let ref: string;
@@ -124,8 +123,9 @@ export async function startContainerBuild(
     commit = resolved;
   }
 
-  // Hourly window is consumed only after preconditions pass (a failed precondition costs nothing).
-  if (!(await kvRateLimit(kv, buildHourKey(uid), lim.buildsPerHour, 3600))) throw new ServiceError("limit", `Hourly build limit reached (${lim.buildsPerHour}/hour). / build ถี่เกินไป รอสักครู่`, 429);
+  // Hourly window (D1, same UTC bucket as the old KV rl): failed/canceled/timed_out do not count, so install_failed retries are free.
+  // Checked after preconditions so a missing token/ref costs nothing. The job row is inserted next and counts while queued/running/succeeded.
+  if ((await userBuildsThisHour(db, uid)) >= lim.buildsPerHour) throw new ServiceError("limit", `Hourly build limit reached (${lim.buildsPerHour}/hour). / build ถี่เกินไป รอสักครู่`, 429);
   const environment = opts.environment ?? "production";
   const { job, created } = await createBuildJob(db, {
     projectId: project.id, userId: uid, executor: "cf-container", environment, trigger: opts.trigger ?? "manual", commitSha: commit, ref, maxAttempts: 2,
