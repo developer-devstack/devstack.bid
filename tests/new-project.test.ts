@@ -183,3 +183,43 @@ describe("createProjectRepo slug gate (template / CLI / chat create)", () => {
     f.mockRestore();
   });
 });
+
+
+describe("createProjectRepo disabled + createHostedProject", () => {
+  it("createProjectRepo never calls GitHub and fails closed", async () => {
+    const { createProjectRepo } = await import("@/lib/connections/github-service");
+    const db = sqliteD1(); seedUsers(db);
+    const f = vi.spyOn(globalThis, "fetch");
+    await expect(createProjectRepo(db, "tok", "userA", { name: "fresh-app-xyz", private: true })).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    expect(f).not.toHaveBeenCalled();
+    f.mockRestore();
+  });
+
+  it("createHostedProject stores files in D1 and R2 sources without GitHub", async () => {
+    const { createHostedProject } = await import("@/lib/connections/github-service");
+    const db = sqliteD1(); seedUsers(db);
+    const m = new Map<string, Uint8Array>();
+    const sites = {
+      async get(key: string) {
+        const v = m.get(key);
+        if (!v) return null;
+        return { body: new Response(v as BlobPart).body!, arrayBuffer: async () => v.buffer, text: async () => new TextDecoder().decode(v) };
+      },
+      async put(key: string, value: Uint8Array | string) {
+        m.set(key, typeof value === "string" ? new TextEncoder().encode(value) : value);
+      },
+    } as never;
+    const f = vi.spyOn(globalThis, "fetch");
+    const r = await createHostedProject(db, "userA", {
+      name: "hosted-demo",
+      files: [{ path: "index.html", content: "<h1>hi</h1>" }, { path: "package.json", content: "{\"name\":\"x\"}" }],
+    }, sites);
+    expect(r.project.repo_full_name).toBeNull();
+    expect(r.sourceSha).toMatch(/^[a-f0-9]{64}$/);
+    expect(m.has(`sources/${r.project.id}/latest.tar`)).toBe(true);
+    const row = await db.prepare("SELECT source, provider, repo_full_name FROM projects WHERE id = ?1").bind(r.project.id).first<{ source: string; provider: string; repo_full_name: string | null }>();
+    expect(row).toMatchObject({ source: "hosted", provider: "devstack-sites", repo_full_name: null });
+    expect(f).not.toHaveBeenCalled();
+    f.mockRestore();
+  });
+});

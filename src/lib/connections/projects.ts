@@ -64,7 +64,7 @@ export const projectView = (p: ProjectRow) => ({
   repo: p.repo_full_name,
   defaultBranch: p.default_branch,
   repoUrl: p.repo_full_name ? `https://github.com/${p.repo_full_name}` : null,
-  source: p.repo_full_name ? ("github" as const) : ("upload" as const),
+  source: p.repo_full_name ? ("github" as const) : p.source === "hosted" ? ("hosted" as const) : ("upload" as const),
   origin: p.source ?? "legacy",
   slug: p.slug ?? null,
   rootDirectory: p.root_directory ?? "",

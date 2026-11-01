@@ -1,13 +1,14 @@
 /**
- * Per-project server Workers (Next.js via OpenNext, or any Worker bundle) for plans without
- * Workers for Platforms. The build container bundles the app (`wrangler deploy --dry-run`) into
- *   server.json            (ignored: runtime settings are platform-controlled)
- *   worker/worker.js       single ES module
- *   assets/**              static assets served by the ASSETS binding
- * The platform uploads it as Worker `site-<hash(projectId)>` (production) or
- * `site-<hash(projectId)>-<hash(deploymentId)>` (preview) with the Cloudflare API, wrapped in a
- * platform guard module that only answers requests carrying the per-worker proxy key that
- * devstack-sites injects. The API token never enters the container (SITES_CF_API_TOKEN).
+ * User Workers for SSR (Next.js via OpenNext) uploaded into a **Workers for Platforms**
+ * dispatch namespace (one namespace, many scripts) — never one standalone account Worker per
+ * project, and never a per-project GitHub repo.
+ *
+ * The build container bundles the app (`wrangler deploy --dry-run`) into
+ *   server.json / worker/worker.js / assets/**
+ * The platform uploads script `site-<hash(projectId)>` (prod) or `…-<hash(deployment)>` (preview)
+ * into `SITES_DISPATCH_NAMESPACE`, wrapped in the platform guard. `devstack-sites` routes via a
+ * dispatcher binding (GO) or legacy workers.dev proxy until the binding is live.
+ * The API token never enters the container (SITES_CF_API_TOKEN).
  */
 import { contentType, PLATFORM_WORKERS, PREVIEW_WORKER, SERVER_WORKER, type R2BucketLike } from "./serve";
 export { PLATFORM_WORKERS };
@@ -118,7 +119,7 @@ export async function assetHash(f: BundleFile): Promise<string> {
   return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export interface CfApi { accountId: string; token: string; proxySecret?: string; fetcher?: typeof fetch }
+export interface CfApi { accountId: string; token: string; proxySecret?: string; /** WfP dispatch namespace name (required for DevStack hosting SSR). */ dispatchNamespace?: string | null; fetcher?: typeof fetch }
 
 /** Cloudflare API failure. `detail` is for server logs only; users see `code`. */
 export class CfApiError extends Error {
@@ -137,18 +138,29 @@ async function call<T>(api: CfApi, path: string, init: RequestInit, bearer = api
   return body.result as T;
 }
 
+/** Script API path: WfP dispatch namespace (required) or legacy account Workers (tests / emergency). */
+export function scriptApiBase(api: CfApi, name: string): string {
+  const ns = api.dispatchNamespace?.trim();
+  if (ns) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(ns)) throw new Error("invalid_dispatch_namespace");
+    return `/workers/dispatch/namespaces/${encodeURIComponent(ns)}/scripts/${encodeURIComponent(name)}`;
+  }
+  return `/workers/scripts/${encodeURIComponent(name)}`;
+}
+
 export const OWNER_TAG = (projectId: string) => `devstack-project-${projectId.replace(/[^a-zA-Z0-9-]/g, "")}`.slice(0, 120);
 
 /** Owner tag of an existing Worker; null = does not exist. Throws `worker_owner_mismatch` when owned by someone else. */
 export async function checkOwnership(api: CfApi, name: string, projectId: string): Promise<"new" | "owned"> {
+  const base = scriptApiBase(api, name);
+  // Account Workers: /script-settings. WfP user Workers: /settings under the dispatch namespace script path.
+  const settingsPath = api.dispatchNamespace?.trim() ? `${base}/settings` : `/workers/scripts/${name}/script-settings`;
   try {
-    const s = await call<{ tags?: string[] | null }>(api, `/workers/scripts/${name}/script-settings`, { method: "GET" });
+    const s = await call<{ tags?: string[] | null }>(api, settingsPath, { method: "GET" });
     const tags = s?.tags ?? [];
     if (tags.includes(OWNER_TAG(projectId))) return "owned";
     if (!tags.length) {
-      // An assets-upload session creates an empty placeholder (no versions, no tags) before the first PUT.
-      // If that PUT failed, the placeholder has no code at all, so it can be claimed.
-      const v = await call<{ items?: unknown[] }>(api, `/workers/scripts/${name}/versions`, { method: "GET" });
+      const v = await call<{ items?: unknown[] }>(api, `${base}/versions`, { method: "GET" }).catch(() => ({ items: [] as unknown[] }));
       if (!(v?.items ?? []).length) return "new";
     }
     throw new Error("worker_owner_mismatch");
@@ -158,11 +170,24 @@ export async function checkOwnership(api: CfApi, name: string, projectId: string
   }
 }
 
-/** Upload (create or replace) Worker `name` for `projectId` with its assets and the guard; enable its workers.dev URL. */
-export async function deployServerWorker(api: CfApi, name: string, b: ServerBundle, projectId: string): Promise<{ versionId: string | null; assets: number }> {
+/**
+ * Upload (create or replace) user Worker `name` for `projectId` into the WfP dispatch namespace
+ * when configured. Standalone account Workers are only allowed when `allowLegacyWorkers` is set
+ * (tests / emergency) — DevStack hosting production path requires `dispatchNamespace`.
+ */
+export async function deployServerWorker(
+  api: CfApi,
+  name: string,
+  b: ServerBundle,
+  projectId: string,
+  opts: { allowLegacyWorkers?: boolean } = {},
+): Promise<{ versionId: string | null; assets: number; via: "wfp" | "legacy" }> {
   assertCustomerWorker(name);
   if (!api.proxySecret) throw new Error("proxy_secret_missing");
+  const via: "wfp" | "legacy" = api.dispatchNamespace?.trim() ? "wfp" : "legacy";
+  if (via === "legacy" && !opts.allowLegacyWorkers) throw new Error("wfp_required");
   await checkOwnership(api, name, projectId);
+  const base = scriptApiBase(api, name);
   const byHash = new Map<string, BundleFile>();
   const manifest: Record<string, { hash: string; size: number }> = {};
   for (const f of b.assets) {
@@ -172,14 +197,12 @@ export async function deployServerWorker(api: CfApi, name: string, b: ServerBund
   }
   let completion: string | null = null;
   if (b.assets.length) {
-    const session = await call<{ jwt: string; buckets?: string[][] }>(api, `/workers/scripts/${name}/assets-upload-session`, {
+    const session = await call<{ jwt: string; buckets?: string[][] }>(api, `${base}/assets-upload-session`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manifest }),
     });
     completion = session.jwt;
     for (const bucket of session.buckets ?? []) {
       const form = new FormData();
-      // Workers Assets serves each file with the MIME type of its upload part. A bare string part has no type,
-      // so assets were served without Content-Type; with our `nosniff` header browsers then refuse CSS/JS.
       for (const h of bucket) { const f = byHash.get(h); if (f) form.append(h, new File([b64(f.bytes)], h, { type: contentType(f.path) })); }
       const r = await call<{ jwt?: string } | null>(api, `/workers/assets/upload?base64=true`, { method: "POST", body: form }, session.jwt);
       if (r && r.jwt) completion = r.jwt;
@@ -201,9 +224,12 @@ export async function deployServerWorker(api: CfApi, name: string, b: ServerBund
   form.append("devstack-guard.js", new Blob([GUARD_MODULE], { type: "application/javascript+module" }), "devstack-guard.js");
   form.append("worker.js", new Blob([b.worker as BlobPart], { type: "application/javascript+module" }), "worker.js");
   for (const m of b.modules ?? []) form.append(m.name, new Blob([m.bytes as BlobPart], { type: m.type }), m.name);
-  const up = await call<{ id?: string; deployment_id?: string | null }>(api, `/workers/scripts/${name}`, { method: "PUT", body: form });
-  await call(api, `/workers/scripts/${name}/subdomain`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: true, previews_enabled: false }) });
-  return { versionId: up?.deployment_id ?? up?.id ?? null, assets: b.assets.length };
+  const up = await call<{ id?: string; deployment_id?: string | null }>(api, base, { method: "PUT", body: form });
+  // WfP user Workers are reached via the dispatcher — do not enable workers.dev subdomains.
+  if (via === "legacy") {
+    await call(api, `/workers/scripts/${name}/subdomain`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: true, previews_enabled: false }) });
+  }
+  return { versionId: up?.deployment_id ?? up?.id ?? null, assets: b.assets.length, via };
 }
 
 export interface CleanupOpts { maxAgeDays?: number; keepPerProject?: number; now?: number; max?: number; bucket?: R2BucketLike | null }

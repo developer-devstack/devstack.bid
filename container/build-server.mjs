@@ -113,30 +113,54 @@ export function openNextInstallCmd(dir, pm) {
   return `npm install --no-save ${OPENNEXT_PKG}`;
 }
 
+async function extractArchive(emit) {
+  const tarPath = join(WORK, "source.tar");
+  if (!existsSync(tarPath)) return { ok: false, code: "invalid_config", message: "source archive missing; POST /source first" };
+  mkdirSync(SRC, { recursive: true });
+  emit({ t: "log", phase: "installing", chunk: "Extracting source archive (no git)\n" });
+  const r = await run("tar", ["-C", SRC, "--exclude=.git", "--no-same-owner", "-xf", tarPath], { cwd: WORK, env: { PATH: process.env.PATH } }, "installing", emit);
+  try { rmSync(tarPath, { force: true }); } catch {}
+  if (state.canceled) return { ok: false, code: "canceled" };
+  if (r.code !== 0) return { ok: false, code: "invalid_config", message: `tar extract failed (exit ${r.code})` };
+  return { ok: true };
+}
+
 async function build(spec, emit) {
-  if (!REPO.test(spec.repo) || !SHA.test(spec.commit) || !REL.test(spec.root ?? "") || !REL.test(spec.output ?? "")) throw Object.assign(new Error("invalid build spec"), { code: "invalid_config" });
+  const archive = spec.source === "archive" || spec.mode === "archive";
+  if (archive) {
+    if (!SHA.test(spec.commit) || !REL.test(spec.root ?? "") || !REL.test(spec.output ?? "")) throw Object.assign(new Error("invalid build spec"), { code: "invalid_config" });
+  } else if (!REPO.test(spec.repo) || !SHA.test(spec.commit) || !REL.test(spec.root ?? "") || !REL.test(spec.output ?? "")) {
+    throw Object.assign(new Error("invalid build spec"), { code: "invalid_config" });
+  }
   mkdirSync(HOME_DIR, { recursive: true });
   // Force the public registry so a leftover private .npmrc / env cannot 403 installs (install_failed).
   const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null" };
   const userEnv = {};
   const REGISTRY_ENV = /^(npm_config_registry|npm_config_always_auth|npm_config_userconfig|YARN_NPM_REGISTRY_SERVER|PNPM_REGISTRY)$/i;
   for (const [k, v] of Object.entries(spec.env ?? {})) if (ENVKEY.test(k) && !BLOCKED_ENV.has(k) && !REGISTRY_ENV.test(k) && typeof v === "string" && v.length <= 32_768) userEnv[k] = v;
-  // Token only reaches git, through config env vars (not argv, not the build's env).
-  const gitEnv = { ...baseEnv, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: "2", GIT_CONFIG_KEY_0: "safe.directory", GIT_CONFIG_VALUE_0: SRC };
-  if (spec.token) { gitEnv.GIT_CONFIG_KEY_1 = "http.https://github.com/.extraheader"; gitEnv.GIT_CONFIG_VALUE_1 = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${spec.token}`).toString("base64")}`; }
-  else gitEnv.GIT_CONFIG_COUNT = "1";
-  spec.token = null;
 
   emit({ t: "phase", phase: "installing" });
-  emit({ t: "log", phase: "installing", chunk: `Cloning ${spec.repo}@${spec.commit.slice(0, 7)}\n` });
-  for (const args of [["init", "-q", SRC], ["-C", SRC, "remote", "add", "origin", `https://github.com/${spec.repo}.git`], ["-C", SRC, "fetch", "-q", "--depth", "1", "origin", spec.commit], ["-C", SRC, "checkout", "-q", "FETCH_HEAD"]]) {
-    const r = await run("git", args, { cwd: WORK, env: gitEnv }, "installing", emit);
-    if (state.canceled) return { ok: false, code: "canceled" };
-    if (r.code !== 0) { scrubGitEnv(gitEnv); return { ok: false, code: "github", message: `git ${args.find((a) => !a.startsWith("-") && a !== SRC) ?? ""} failed (exit ${r.code})` }; }
+  if (archive) {
+    spec.token = null;
+    const ex = await extractArchive(emit);
+    if (!ex.ok) return ex;
+  } else {
+    // Token only reaches git, through config env vars (not argv, not the build's env).
+    const gitEnv = { ...baseEnv, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: "2", GIT_CONFIG_KEY_0: "safe.directory", GIT_CONFIG_VALUE_0: SRC };
+    if (spec.token) { gitEnv.GIT_CONFIG_KEY_1 = "http.https://github.com/.extraheader"; gitEnv.GIT_CONFIG_VALUE_1 = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${spec.token}`).toString("base64")}`; }
+    else gitEnv.GIT_CONFIG_COUNT = "1";
+    spec.token = null;
+
+    emit({ t: "log", phase: "installing", chunk: `Cloning ${spec.repo}@${spec.commit.slice(0, 7)}\n` });
+    for (const args of [["init", "-q", SRC], ["-C", SRC, "remote", "add", "origin", `https://github.com/${spec.repo}.git`], ["-C", SRC, "fetch", "-q", "--depth", "1", "origin", spec.commit], ["-C", SRC, "checkout", "-q", "FETCH_HEAD"]]) {
+      const r = await run("git", args, { cwd: WORK, env: gitEnv }, "installing", emit);
+      if (state.canceled) return { ok: false, code: "canceled" };
+      if (r.code !== 0) { scrubGitEnv(gitEnv); return { ok: false, code: "github", message: `git ${args.find((a) => !a.startsWith("-") && a !== SRC) ?? ""} failed (exit ${r.code})` }; }
+    }
+    // Clone done: drop the credential from memory and make sure nothing credential-like stays in the checkout.
+    scrubGitEnv(gitEnv);
+    scrubCheckout(SRC, spec.repo);
   }
-  // Clone done: drop the credential from memory and make sure nothing credential-like stays in the checkout.
-  scrubGitEnv(gitEnv);
-  scrubCheckout(SRC, spec.repo);
   const dir = normalize(join(SRC, spec.root || "."));
   if (!dir.startsWith(SRC) || !existsSync(dir)) return { ok: false, code: "invalid_config", message: "root directory not found" };
   pinPublicRegistry(dir, emit);
@@ -228,6 +252,22 @@ const server = createServer(async (req, res) => {
     res.setHeader("Content-Type", "application/x-tar");
     const tar = spawn("tar", ["-C", state.output, "--exclude=.git", "--exclude=node_modules", "--no-same-owner", "-cf", "-", "."], { stdio: ["ignore", "pipe", "ignore"] });
     tar.stdout.pipe(res);
+    return;
+  }
+  if (req.method === "POST" && req.url === "/source") {
+    // DevStack-hosted builds: upload a tar of project sources (no GitHub clone).
+    if (state.running || state.done) { res.statusCode = 409; res.end(); return; }
+    const max = 80 * 1024 * 1024;
+    const chunks = [];
+    let n = 0;
+    for await (const c of req) {
+      n += c.length;
+      if (n > max) { res.statusCode = 413; res.end(); return; }
+      chunks.push(c);
+    }
+    mkdirSync(WORK, { recursive: true });
+    writeFileSync(join(WORK, "source.tar"), Buffer.concat(chunks));
+    res.end("ok");
     return;
   }
   if (req.method === "POST" && req.url === "/build") {

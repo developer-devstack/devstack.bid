@@ -3,10 +3,11 @@
  * Default Deploy / Retry deploy lands here (target=devstack → *.devstack.bid).
  * User Cloudflare remains an explicit optional target.
  *
- * Paths:
- *   - GitHub repo  → container build (user OAuth clone) → R2 sites / server Worker
- *   - Zip upload   → static publish to R2 (no build; needs_build rejected)
- *   - cloudflare   → existing startDeploy (customer account)
+ * Paths (no GitHub create / push on this path):
+ *   - Hosted project (R2 sources) → container archive build → R2 static / WfP user Worker
+ *   - Imported existing GitHub repo → container clone (user OAuth only) → same publish
+ *   - Static zip ready → R2 sites (no build)
+ *   - cloudflare → existing startDeploy (customer account)
  */
 import "server-only";
 import type { D1Like } from "@/lib/chat/store";
@@ -62,40 +63,67 @@ export async function startHostingDeploy(
     return { kind: "cloudflare", deployment };
   }
 
+  // GitHub import OR hosted R2 sources that need a container build.
   if (project.repo_full_name) {
-    const r = await startContainerBuild(db, keys, builds, uid, project, {
-      ref: opts.ref ?? null,
-      environment: opts.environment ?? "preview",
-      trigger: opts.trigger === "retry" ? "redeploy" : (opts.trigger ?? "manual"),
-    });
-    const deployment: DeploymentRow = {
-      id: r.deploymentId,
-      project_id: project.id,
-      user_id: uid,
-      commit_sha: r.job.commit_sha,
-      ref: r.job.ref,
-      target: "devstack-sites",
-      status: "queued",
-      url: null,
-      cf_version_id: null,
-      error_code: null,
-      error_log: null,
-      fix_attempts: 0,
-      build_job_id: r.job.id,
-      trigger: r.job.trigger,
-      environment: r.job.environment,
-      created_at: r.job.created_at,
-      finished_at: null,
-    };
-    return { kind: "devstack-build", deploymentId: r.deploymentId, jobId: r.job.id, previewUrl: r.previewUrl, productionUrl: r.productionUrl, deployment };
+    return queueContainer(db, keys, builds, uid, project, opts);
+  }
+
+  // Hosted / upload: if files need a build, use archive container (R2 sources) — never GitHub create.
+  if (builds.sites) {
+    const files = await loadProjectFiles(db, project.id).catch(() => []);
+    if (files.length) {
+      const profile = uploadProfile(files);
+      if (profile.path === "cf-build") {
+        // Ensure R2 source archive exists (createHostedProject already put one; zip upload may only have D1).
+        const { putProjectSource } = await import("@/lib/hosting/sources");
+        await putProjectSource(builds.sites, project.id, files.map((f) => ({ path: f.path, bytes: f.bytes })));
+        return queueContainer(db, keys, builds, uid, project, opts);
+      }
+    }
   }
 
   return publishUploadedSite(db, builds.sites, builds.dnsReady, uid, project, opts.environment ?? "preview");
 }
 
+async function queueContainer(
+  db: D1Like,
+  keys: SealKeys,
+  builds: BuildBindings,
+  uid: string,
+  project: ProjectRow,
+  opts: HostingDeployOpts,
+): Promise<Extract<HostingDeployResult, { kind: "devstack-build" }>> {
+  const r = await startContainerBuild(db, keys, builds, uid, project, {
+    ref: opts.ref ?? null,
+    environment: opts.environment ?? "preview",
+    trigger: opts.trigger === "retry" ? "redeploy" : (opts.trigger ?? "manual"),
+  });
+  const deployment: DeploymentRow = {
+    id: r.deploymentId,
+    project_id: project.id,
+    user_id: uid,
+    commit_sha: r.job.commit_sha,
+    ref: r.job.ref,
+    target: "devstack-sites",
+    status: "queued",
+    url: null,
+    cf_version_id: null,
+    error_code: null,
+    error_log: null,
+    fix_attempts: 0,
+    build_job_id: r.job.id,
+    trigger: r.job.trigger,
+    environment: r.job.environment,
+    created_at: r.job.created_at,
+    finished_at: null,
+  };
+  return { kind: "devstack-build", deploymentId: r.deploymentId, jobId: r.job.id, previewUrl: r.previewUrl, productionUrl: r.productionUrl, deployment };
+}
+
 /**
  * Zip / uploaded static files → R2 sites/<id> + preview hostname.
- * Framework zips that still need `npm run build` are rejected (use GitHub + container).
+ * Framework zips that still need `npm run build` should go through archive container
+ * via startHostingDeploy (not this helper).
  */
 export async function publishUploadedSite(
   db: D1Like,
@@ -117,7 +145,7 @@ export async function publishUploadedSite(
   if (profile.path !== "direct") {
     throw new ServiceError(
       "invalid",
-      "This upload needs a build step. Connect the GitHub repo and Deploy (DevStack will build it), or zip the built output (index.html ready). / ไฟล์นี้ต้อง build ก่อน หรือเชื่อม GitHub แล้วกด Deploy",
+      "This upload needs a build step. Use Deploy on DevStack hosting (archive build from R2 sources), or zip the built output (index.html ready). / ไฟล์นี้ต้อง build — กด Deploy บน DevStack",
       422,
     );
   }

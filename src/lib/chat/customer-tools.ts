@@ -12,7 +12,7 @@ import {
 import { parseRepo, safeBranch, safeCommitMessage, safeRepoPath } from "@/lib/auth/github-policy";
 import { audit } from "@/lib/connections/audit";
 import { loadGithubToken, type SealKeys } from "@/lib/connections/credentials";
-import { commitToBranch, createProjectRepo, takeQuota } from "@/lib/connections/github-service";
+import { commitToBranch, createHostedProject, takeQuota } from "@/lib/connections/github-service";
 import { validateChangeSet } from "@/lib/connections/policy";
 import { findProjectByRepo, getProject, projectView } from "@/lib/connections/projects";
 import { LIMITS } from "@/lib/connections/policy";
@@ -89,14 +89,15 @@ export async function runCustomerTool(name: string, args: Record<string, unknown
       return { path, sha: f.sha, content: f.content.slice(0, 60_000), truncated: f.content.length > 60_000 };
     }
     case "github_create_repo": {
+      // Intentionally does NOT create a GitHub repo (spam-ban risk). Hosted on DevStack R2.
       let files;
       if (args.files !== undefined) {
         const v = validateChangeSet(args.files);
         if (!v.ok) throw new CustomerToolError(`Files rejected: ${v.error}${v.path ? ` (${v.path})` : ""}`);
         files = v.files;
       }
-      const res = await createProjectRepo(ctx.db, token, ctx.uid, { name: String(args.name ?? ""), private: args.private !== false, description: typeof args.description === "string" ? args.description : undefined, files }, (await routeBuildBindings()).sites);
-      return { project: projectView(res.project), url: res.htmlUrl, commit: res.commit ?? null };
+      const res = await createHostedProject(ctx.db, ctx.uid, { name: String(args.name ?? ""), description: typeof args.description === "string" ? args.description : undefined, files }, (await routeBuildBindings()).sites);
+      return { project: projectView(res.project), url: null, commit: null, sourceSha: res.sourceSha, hosting: "devstack", note: "Created on DevStack hosting without a new GitHub repository." };
     }
     case "github_create_branch": {
       const r = repoOf(args);

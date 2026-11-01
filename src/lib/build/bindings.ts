@@ -19,7 +19,13 @@ export function buildBindings(env: Record<string, unknown>): BuildBindings {
     // Platform token for per-project server Workers (Workers Scripts: Edit). Never sent to the container.
     cfApi: typeof env.SITES_CF_API_TOKEN === "string" && env.SITES_CF_API_TOKEN && typeof env.SITES_CF_ACCOUNT_ID === "string" && env.SITES_CF_ACCOUNT_ID
       && typeof env.SITES_PROXY_SECRET === "string" && env.SITES_PROXY_SECRET.length >= 32
-      ? { token: env.SITES_CF_API_TOKEN, accountId: env.SITES_CF_ACCOUNT_ID, proxySecret: env.SITES_PROXY_SECRET }
+      ? {
+          token: env.SITES_CF_API_TOKEN,
+          accountId: env.SITES_CF_ACCOUNT_ID,
+          proxySecret: env.SITES_PROXY_SECRET,
+          // Workers for Platforms dispatch namespace (required for SSR hosting). Empty → deploy fails with wfp_required.
+          dispatchNamespace: typeof env.SITES_DISPATCH_NAMESPACE === "string" ? env.SITES_DISPATCH_NAMESPACE.trim() || null : null,
+        }
       : null,
   };
 }

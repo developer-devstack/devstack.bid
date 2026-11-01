@@ -72,7 +72,7 @@ describe("DevStack first-party hosting deploy", () => {
     expect(dep).toMatchObject({ status: "live", target: "devstack-sites", url: r.previewUrl });
   });
 
-  it("rejects uploads that still need a build step (point user at GitHub Deploy)", async () => {
+  it("rejects publishUploadedSite for uploads that still need a build step", async () => {
     const db = await seedUpload([
       { path: "package.json", content: JSON.stringify({ name: "app", scripts: { build: "vite build" }, dependencies: { react: "19.0.0" } }) },
       { path: "src/main.tsx", content: "export {}" },
