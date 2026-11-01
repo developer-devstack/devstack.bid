@@ -15,7 +15,7 @@ with commercial or usage-based terms. For dual licenses we use the permissive op
 
 | Set | Packages | Licenses | Flagged |
 |---|---|---|---|
-| Site (devstack.bid, Next.js Worker) | 174 | MIT ×138, ISC ×16, Apache-2.0 ×8, UNKNOWN ×2, BSD-3-Clause ×2, MIT OR Apache-2.0 ×1, SEE LICENSE IN ./LICENSE ×1, CC-BY-4.0 ×1, BSD-2-Clause ×1, W3C-20150513 ×1, (MIT OR GPL-3.0-or-later) ×1, (MIT AND Zlib) ×1, 0BSD ×1 | 0 |
+| Site (devstack.bid, Next.js Worker) | 201 | MIT ×139, Apache-2.0 ×20, ISC ×16, LGPL-3.0-or-later ×10, Apache-2.0 AND LGPL-3.0-or-later ×3, UNKNOWN ×2, BSD-3-Clause ×2, MIT OR Apache-2.0 ×1, SEE LICENSE IN ./LICENSE ×1, Apache-2.0 AND LGPL-3.0-or-later AND MIT ×1, CC-BY-4.0 ×1, BSD-2-Clause ×1, W3C-20150513 ×1, (MIT OR GPL-3.0-or-later) ×1, (MIT AND Zlib) ×1, 0BSD ×1 | 14 |
 | Studio (/studio/, browser bundle) | 49 | MIT ×39, Apache-2.0 ×3, OFL-1.1 ×3, (MPL-2.0 OR Apache-2.0) ×1, ISC ×1, (MIT OR GPL-3.0-or-later) ×1, (MIT AND Zlib) ×1 | 0 |
 
 ## Exceptions and notes
@@ -25,7 +25,7 @@ with commercial or usage-based terms. For dual licenses we use the permissive op
 - `@splinetool/react-spline`: UNKNOWN, MIT per the LICENSE file shipped in the package (Spline, Inc.); package.json has no license field.
 - `@splinetool/runtime`: UNKNOWN, NOT open source: no license field or file; Spline, Inc. terms apply. Explicit owner-approved exception to AGENTS.md rule 9, dated 2026-10-17 (Spline 3D scene on the /ui-lab demo, client-only chunk).
 - `intersection-observer`: W3C-20150513, W3C Software and Document License (OSI-approved, permissive); polyfill pulled in by Sandpack.
-- `sharp` / `@img/sharp-libvips-*` (LGPL-3.0-or-later): optional native image library pulled in by `next` and `wrangler` for local builds and `next dev`. It is marked dev/optional in the lockfile, is not in the Worker bundle, and is not shipped. No action needed.
+- `sharp` / `@img/sharp-libvips-*` (LGPL-3.0-or-later): optional native image library pulled in by `next` and `wrangler` for local builds and `next dev`. It is optional in the lockfile (and often also marked dev), is not in the Worker bundle, and is not shipped. Excluded from the allow-list check when `optional`. No action needed.
 - No dependency requires a paid or commercial license. WebContainers (`@webcontainer/api`, commercial terms for some production use) was removed in 0.8.0-rc.2.
 
 ## Bundled code inside packages
@@ -70,11 +70,38 @@ with commercial or usage-based terms. For dual licenses we use the permissive op
 | `@dnd-kit/core` | 6.3.1 | MIT |
 | `@dnd-kit/sortable` | 10.0.0 | MIT |
 | `@dnd-kit/utilities` | 3.2.2 | MIT |
+| `@emnapi/runtime` | 1.11.3 | MIT (optional) |
 | `@floating-ui/core` | 1.8.0 | MIT |
 | `@floating-ui/dom` | 1.8.0 | MIT |
 | `@floating-ui/react-dom` | 2.1.9 | MIT |
 | `@floating-ui/utils` | 0.2.12 | MIT |
 | `@img/colour` | 1.1.0 | MIT |
+| `@img/sharp-darwin-arm64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-darwin-x64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-freebsd-wasm32` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-libvips-darwin-arm64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-darwin-x64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-arm` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-arm64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-ppc64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-riscv64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-s390x` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linux-x64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linuxmusl-arm64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-libvips-linuxmusl-x64` | 1.3.4 | LGPL-3.0-or-later (optional) |
+| `@img/sharp-linux-arm` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linux-arm64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linux-ppc64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linux-riscv64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linux-s390x` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linux-x64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linuxmusl-arm64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-linuxmusl-x64` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-wasm32` | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later AND MIT (optional) |
+| `@img/sharp-webcontainers-wasm32` | 0.35.5 | Apache-2.0 (optional) |
+| `@img/sharp-win32-arm64` | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later (optional) |
+| `@img/sharp-win32-ia32` | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later (optional) |
+| `@img/sharp-win32-x64` | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later (optional) |
 | `@lezer/common` | 1.5.3 | MIT |
 | `@lezer/css` | 1.3.9 | MIT |
 | `@lezer/highlight` | 1.2.5 | MIT |
@@ -82,15 +109,15 @@ with commercial or usage-based terms. For dual licenses we use the permissive op
 | `@lezer/javascript` | 1.5.6 | MIT |
 | `@lezer/lr` | 1.4.11 | MIT |
 | `@marijn/find-cluster-break` | 1.0.4 | MIT |
-| `@next/env` | 16.4.0 | MIT |
-| `@next/swc-darwin-arm64` | 16.4.0 | MIT (optional) |
-| `@next/swc-darwin-x64` | 16.4.0 | MIT (optional) |
-| `@next/swc-linux-arm64-gnu` | 16.4.0 | MIT (optional) |
-| `@next/swc-linux-arm64-musl` | 16.4.0 | MIT (optional) |
-| `@next/swc-linux-x64-gnu` | 16.4.0 | MIT (optional) |
-| `@next/swc-linux-x64-musl` | 16.4.0 | MIT (optional) |
-| `@next/swc-win32-arm64-msvc` | 16.4.0 | MIT (optional) |
-| `@next/swc-win32-x64-msvc` | 16.4.0 | MIT (optional) |
+| `@next/env` | 16.4.3 | MIT |
+| `@next/swc-darwin-arm64` | 16.4.3 | MIT (optional) |
+| `@next/swc-darwin-x64` | 16.4.3 | MIT (optional) |
+| `@next/swc-linux-arm64-gnu` | 16.4.3 | MIT (optional) |
+| `@next/swc-linux-arm64-musl` | 16.4.3 | MIT (optional) |
+| `@next/swc-linux-x64-gnu` | 16.4.3 | MIT (optional) |
+| `@next/swc-linux-x64-musl` | 16.4.3 | MIT (optional) |
+| `@next/swc-win32-arm64-msvc` | 16.4.3 | MIT (optional) |
+| `@next/swc-win32-x64-msvc` | 16.4.3 | MIT (optional) |
 | `@open-draft/deferred-promise` | 2.2.0 | MIT |
 | `@radix-ui/primitive` | 1.1.7 | MIT |
 | `@radix-ui/react-arrow` | 1.1.16 | MIT |
@@ -184,7 +211,7 @@ with commercial or usage-based terms. For dual licenses we use the permissive op
 | `motion-dom` | 14.3.0 | MIT |
 | `motion-utils` | 14.1.1 | MIT |
 | `nanoid` | 3.3.20 | MIT |
-| `next` | 16.4.0 | MIT |
+| `next` | 16.4.3 | MIT |
 | `next-tick` | 1.1.0 | ISC |
 | `on-change` | 4.0.0 | MIT |
 | `outvariant` | 1.4.0 | MIT |
