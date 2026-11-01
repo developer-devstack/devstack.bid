@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Nitro/Nuxt SSR on Workers for Platforms:** build container sets `NITRO_PRESET=cloudflare_module`, detects Nitro `.output/server` (and OpenNext), deploys Worker+assets — no longer fails Nuxt SSR builds with `missing_index`.
+- **Server bundle entry normalization:** wrangler `--outdir` emits `index.js` for Nitro (`index.mjs` main); rename to `worker.js` so the artifact matches the OpenNext/WfP upload shape.
+- **OpenNext next peer bump runs before install:** rewrite `package.json` next floor before `npm ci` so repos that already depend on `@opennextjs/cloudflare` with an out-of-range next (e.g. 16.2.4) do not ERESOLVE; fall back to `npm install` when the lockfile must refresh.
 - Build quota no longer counts `failed` / `canceled` / `timed_out` jobs (daily + hourly, D1). Retries after
   `install_failed` no longer burn the free-tier 3/hour cap. Hourly hard limit moved from Workers KV to D1
   (same UTC hour bucket).

@@ -3,7 +3,7 @@
 // The GitHub token is passed to git via an http.extraheader in GIT_CONFIG_* env (never argv, never logged).
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
 import { join, normalize } from "node:path";
 
 const WORK = process.env.BUILD_WORKDIR || "/work";
@@ -274,7 +274,32 @@ async function build(spec, emit) {
   // Re-assert public registry after user env so a project cannot redirect installs to a private host that 403s.
   const env = { ...baseEnv, ...userEnv, NODE_ENV: "production", npm_config_registry: PUBLIC_NPM, YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_always_auth: "false" };
   const detected = detectPm(dir);
-  const install = spec.install || detected.install;
+  let buildCmd = spec.build;
+  if (!buildCmd && existsSync(join(dir, "package.json"))) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+      if (pkg.scripts?.build) buildCmd = `${detected.pm ?? "npm"} run build`;
+    } catch {}
+  }
+  const added = prepareOpenNext(dir, buildCmd);
+  if (added.length) emit({ t: "log", phase: "installing", chunk: `Repo has no Cloudflare config; added ${added.join(", ")} for this build (commit them to customize).\n` });
+  const wantsOpenNext = !!(buildCmd && /(^|\s)opennextjs-cloudflare(\s|$)/.test(buildCmd));
+  // Rewrite next in package.json BEFORE install so npm ci / peer resolution does not ERESOLVE
+  // when the repo already depends on @opennextjs/cloudflare with an out-of-range next.
+  let nextBump = null;
+  if (wantsOpenNext) {
+    nextBump = ensureNextForOpenNext(dir, detected.pm);
+    if (nextBump) {
+      const list = nextBump.bumped.map((b) => `${b.name} ${b.from} → ${b.to}`).join(", ");
+      emit({ t: "log", phase: "installing", chunk: `next ${nextBump.from} is below @opennextjs/cloudflare's peer (needs >=15.5.28 on 15.x or >=16.4.1). Auto-bumping in the build workspace only: ${list}.\n` });
+    }
+  }
+  let install = spec.install || detected.install;
+  // package.json next changed → lockfile no longer matches npm ci; use npm install for this workspace.
+  if (nextBump && install && /\bnpm\s+ci\b/.test(install)) {
+    install = "npm install";
+    emit({ t: "log", phase: "installing", chunk: `Using npm install (not npm ci) after OpenNext next bump so the lockfile can resolve.\n` });
+  }
   if (install) {
     emit({ t: "log", phase: "installing", chunk: `$ ${install}\n` });
     const a = argv(install);
@@ -283,24 +308,13 @@ async function build(spec, emit) {
     if (state.canceled) return { ok: false, code: "canceled" };
     if (r.code !== 0) return { ok: false, code: "install_failed", message: `install exited with ${r.code}` };
   }
-  let buildCmd = spec.build;
-  if (!buildCmd && existsSync(join(dir, "package.json"))) {
-    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
-    if (pkg.scripts?.build) buildCmd = `${detected.pm ?? "npm"} run build`;
-  }
-  const added = prepareOpenNext(dir, buildCmd);
-  if (added.length) emit({ t: "log", phase: "installing", chunk: `Repo has no Cloudflare config; added ${added.join(", ")} for this build (commit them to customize).\n` });
-  const wantsOpenNext = !!(buildCmd && /(^|\s)opennextjs-cloudflare(\s|$)/.test(buildCmd));
-  if (wantsOpenNext) {
-    const nextBump = ensureNextForOpenNext(dir, detected.pm);
-    if (nextBump) {
-      const list = nextBump.bumped.map((b) => `${b.name} ${b.from} → ${b.to}`).join(", ");
-      emit({ t: "log", phase: "installing", chunk: `next ${nextBump.from} is below @opennextjs/cloudflare's peer (needs >=15.5.28 on 15.x or >=16.4.1). Auto-bumping in the build workspace only: ${list}.\n$ ${nextBump.installCmd}\n` });
-      const a = argv(nextBump.installCmd);
-      const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
-      if (state.canceled) return { ok: false, code: "canceled" };
-      if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump next to ${nextBump.to} for OpenNext (exit ${r.code}); upgrade next in package.json to >=15.5.28 (15.x) or >=16.4.1` };
-    }
+  // If install did not pull the bumped next (e.g. custom install cmd), run the explicit bump install.
+  if (nextBump && !nextSatisfiesOpenNext((() => { try { return JSON.parse(readFileSync(join(dir, "node_modules", "next", "package.json"), "utf8")).version; } catch { return ""; } })())) {
+    emit({ t: "log", phase: "installing", chunk: `$ ${nextBump.installCmd}\n` });
+    const a = argv(nextBump.installCmd);
+    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
+    if (state.canceled) return { ok: false, code: "canceled" };
+    if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump next to ${nextBump.to} for OpenNext (exit ${r.code}); upgrade next in package.json to >=15.5.28 (15.x) or >=16.4.1` };
   }
   const adapter = wantsOpenNext ? openNextInstallCmd(dir, detected.pm) : null;
   if (adapter) {
@@ -370,7 +384,14 @@ export async function bundleServer(dir, artifact, env, emit) {
   const [cmd, args] = existsSync(local) ? [local, []] : ["npx", ["--yes", "wrangler@4"]];
   const r = await run(cmd, [...args, "deploy", "--dry-run", "--config", cfg, "--outdir", join(outDir, "worker")], { cwd: dir, env: { ...env, WRANGLER_SEND_METRICS: "false" } }, "building", emit);
   if (r.code !== 0) return { ok: false, code: "build_failed", message: `server bundle exited with ${r.code}` };
-  if (!existsSync(join(outDir, "worker", "worker.js"))) return { ok: false, code: "missing_index", message: "server bundle produced no worker.js" };
+  // OpenNext main is worker.js → outdir/worker.js; Nitro main is index.mjs → outdir/index.js.
+  const bundled = join(outDir, "worker", "worker.js");
+  const nitroBundled = join(outDir, "worker", "index.js");
+  if (!existsSync(bundled) && existsSync(nitroBundled)) {
+    renameSync(nitroBundled, bundled);
+    try { renameSync(join(outDir, "worker", "index.js.map"), join(outDir, "worker", "worker.js.map")); } catch {}
+  }
+  if (!existsSync(bundled)) return { ok: false, code: "missing_index", message: "server bundle produced no worker.js" };
   const cp = await run("cp", ["-r", assetsDir, join(outDir, "assets")], { cwd: dir, env }, "building", emit);
   if (cp.code !== 0) return { ok: false, code: "build_failed", message: "could not copy server assets" };
   for (const f of ["worker.js.map", "README.md"]) { try { rmSync(join(outDir, "worker", f), { force: true }); } catch {} }
