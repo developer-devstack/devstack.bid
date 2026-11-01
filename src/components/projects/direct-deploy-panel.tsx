@@ -11,7 +11,7 @@ import { LiveUrl, RetryButton, StatusPill, type DeploymentView } from "../deploy
 
 const input = "mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 font-mono text-sm text-fg outline-none focus:border-fg";
 
-/** Option A: direct deploy into the customer's Cloudflare account + deployments timeline. */
+/** Primary: Deploy to DevStack hosting (*.devstack.bid). Optional: customer's own Cloudflare. */
 export function DirectDeployPanel({ projectId, profile }: { projectId: string; profile: DeployProfile }) {
   const { lang } = useLang();
   const th = lang === "th";
@@ -37,18 +37,30 @@ export function DirectDeployPanel({ projectId, profile }: { projectId: string; p
   }, [load]);
 
   const refresh = () => { void load().then(setItems); setTimeout(() => void load().then(setItems), 3000); };
-  const direct = profile.path === "direct";
+  const needsBuild = profile.path === "cf-build";
+  const notDeployable = profile.path === "none";
 
   return (
     <Card className="mt-6 p-5">
       <div className="flex items-center gap-2">
         <Rocket className="h-5 w-5" aria-hidden />
-        <h2 className="text-base font-semibold text-fg">{th ? "Deploy ตรงเข้าบัญชี Cloudflare ของคุณ" : "Direct deploy to your Cloudflare account"}</h2>
+        <h2 className="text-base font-semibold text-fg">{th ? "Deploy บนโฮสต์ติ้งของ DevStack" : "Deploy on DevStack hosting"}</h2>
       </div>
-      {direct ? (
+      <p className="mt-2 text-sm text-subtle">
+        {th
+          ? "ขึ้นที่ <slug>.devstack.bid โดยไม่ต้องเชื่อม Cloudflare ของคุณ (ค่าเริ่มต้น)"
+          : "Publishes to <slug>.devstack.bid — no Cloudflare connection required (default)."}
+      </p>
+      {notDeployable ? (
+        <p className="mt-3 text-sm text-subtle">{th ? "โปรเจกต์นี้ไม่ใช่เว็บแอปที่ deploy ได้บนแพลตฟอร์มนี้" : "This project is not a deployable web app on this platform."}</p>
+      ) : (
         <div className="mt-3 space-y-3">
+          <RetryButton projectId={projectId} refName={null} target="devstack" onStarted={() => refresh()} label={th ? "Deploy บน DevStack" : "Deploy on DevStack"} />
+          {needsBuild && (
+            <p className="text-xs text-subtle">{th ? "โปรเจกต์นี้ต้อง build — DevStack จะ build ให้ใน container แล้วขึ้นโฮสต์ติ้งของเรา (ต้องเป็น repo บน GitHub)" : "This project needs a build — DevStack builds it in a container and hosts it (GitHub repo required)."}</p>
+          )}
           <details className="rounded-lg border border-border px-3 py-2 text-sm">
-            <summary className="cursor-pointer text-fg">{th ? "ใช้ token อื่นสำหรับรอบนี้ (ไม่บังคับ)" : "Use a different token for this deploy (optional)"}</summary>
+            <summary className="cursor-pointer text-fg">{th ? "ทางเลือก: Deploy เข้าบัญชี Cloudflare ของคุณ" : "Optional: deploy into your own Cloudflare account"}</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-medium text-fg">API token<input type="password" autoComplete="off" spellCheck={false} value={once.token} onChange={(e) => setOnce({ ...once, token: e.target.value })} className={input} placeholder="••••" /></label>
               <label className="text-sm font-medium text-fg">Account ID<input value={once.accountId} onChange={(e) => setOnce({ ...once, accountId: e.target.value })} className={input} placeholder="32 hex characters" /></label>
@@ -56,12 +68,12 @@ export function DirectDeployPanel({ projectId, profile }: { projectId: string; p
                 <RememberToggle checked={once.remember} onCheckedChange={(remember) => setOnce({ ...once, remember })} />
                 <CreateTokenMenu primary="cloudflare" />
               </div>
+              <div className="sm:col-span-2">
+                <RetryButton projectId={projectId} refName={null} once={once.token ? once : null} target="cloudflare" onStarted={(id) => { setOnce({ token: "", accountId: once.accountId, remember: false }); refresh(); void id; }} label={th ? "Deploy ไป Cloudflare ของฉัน" : "Deploy to my Cloudflare"} />
+              </div>
             </div>
           </details>
-          <RetryButton projectId={projectId} refName={null} once={once.token ? once : null} onStarted={(id) => { setOnce({ token: "", accountId: once.accountId, remember: false }); refresh(); void id; }} label="Deploy" />
         </div>
-      ) : (
-        <p className="mt-3 text-sm text-subtle">{th ? "โปรเจกต์นี้ต้อง build ก่อน จึงใช้ปุ่ม Deploy to Cloudflare / Workers Builds ด้านบน" : "This project needs a build step — use Deploy to Cloudflare / Workers Builds above."}</p>
       )}
       <ol className="mt-4 space-y-3 border-l border-border pl-4">
         {items.map((d) => (

@@ -154,59 +154,48 @@ export function previewExpired(acceptLanguage: string | null = null): Response {
 
 export interface ProxyOpts { proxyKey?: string | null; fetcher?: typeof fetch }
 
-/**
- * Forward a request to the project's own Worker on workers.dev (method, path, query, body kept).
- * Only allowlisted request headers go upstream, plus the per-worker proxy key. On the way back all
- * Set-Cookie headers are removed (no cookie tossing onto devstack.bid), platform security headers
- * and the report badge are applied, and upstream errors that did not come from the project
- * Worker itself become our "Site temporarily unavailable" page.
- */
-export async function proxyToWorker(req: Request, worker: string, subdomain: string, opts: ProxyOpts | typeof fetch = {}): Promise<Response> {
-  const o: ProxyOpts = typeof opts === "function" ? { fetcher: opts } : opts;
-  const fetcher = o.fetcher ?? fetch;
-  const url = new URL(req.url);
-  // Never resolve the request path against the base: "//evil.com/x" would change the host (open proxy / key leak).
-  const expectedHost = `${worker}.${subdomain}.workers.dev`;
-  if (!SERVER_WORKER.test(worker) || PLATFORM_WORKERS.has(worker) || !/^[a-z0-9-]{1,63}$/.test(subdomain)) return unavailable(502);
-  const target = new URL(`https://${expectedHost}`);
-  target.pathname = url.pathname;
-  target.search = url.search;
-  if (target.host !== expectedHost || target.protocol !== "https:") return unavailable(502);
-  const headers = new Headers();
-  for (const k of FORWARD_REQUEST_HEADERS) { const v = req.headers.get(k); if (v !== null) headers.set(k, v); }
-  headers.set("X-Forwarded-Host", url.hostname);
-  headers.set("X-Forwarded-Proto", "https");
-  if (o.proxyKey) headers.set("X-Devstack-Proxy", o.proxyKey);
-  let res: Response;
-  try {
-    res = await fetcher(target.toString(), { method: req.method, headers, body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body, redirect: "manual" });
-  } catch {
-    return unavailable(502);
-  }
+export interface DispatcherLike {
+  get(name: string): { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> };
+}
+
+async function finalizeProxyResponse(
+  req: Request,
+  res: Response,
+  worker: string,
+  publicUrl: URL,
+  locationBase: URL,
+): Promise<Response> {
   const fromProject = res.headers.get("x-devstack-origin") === "project";
   if (!fromProject && (res.status === 404 || res.status >= 500)) {
-    // A deleted (cleaned-up) preview Worker: say so instead of "temporarily unavailable".
     if (res.status === 404 && PREVIEW_WORKER.test(worker)) return previewExpired(req.headers.get("accept-language"));
     return unavailable(res.status === 404 ? 503 : 502);
   }
   const out = new Headers(res.headers);
   for (const k of DROP_RESPONSE) out.delete(k);
   for (const [k, v] of Object.entries(BASE_HEADERS)) {
-    if (k === "Content-Security-Policy") out.append(k, v); // a customer CSP stays; ours adds frame-ancestors on top
+    if (k === "Content-Security-Policy") out.append(k, v);
     else out.set(k, v);
   }
   const loc = out.get("location");
-  if (loc) { try { const l = new URL(loc, target); if (l.host === target.host) { l.host = url.host; out.set("location", l.toString()); } } catch { out.delete("location"); } }
+  if (loc) {
+    try {
+      const l = new URL(loc, locationBase);
+      if (l.host === locationBase.host) {
+        l.host = publicUrl.host;
+        out.set("location", l.toString());
+      }
+    } catch {
+      out.delete("location");
+    }
+  }
   const type = out.get("content-type") ?? "";
   const lt = type.toLowerCase();
   if ((lt.startsWith("text/html") || lt.startsWith("application/xhtml+xml")) && req.method !== "HEAD" && res.status !== 204 && res.status !== 304 && res.body) {
-    // The body is re-emitted decoded; never keep the upstream encoding header.
     out.delete("content-encoding");
     const Rewriter = (globalThis as { HTMLRewriter?: new () => HTMLRewriterLike }).HTMLRewriter;
     const plain = new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
     if (Rewriter) {
-      // Streamed: no buffering. Appended inside <body>; documents without <body> get it at document end.
-      const badge = reportBadge(url.hostname);
+      const badge = reportBadge(publicUrl.hostname);
       let placed = false;
       return new Rewriter()
         .on("body", { element(e) { placed = true; e.append(badge, { html: true }); } })
@@ -214,20 +203,73 @@ export async function proxyToWorker(req: Request, worker: string, subdomain: str
         .transform(plain);
     }
     const html = await plain.text();
-    return new Response(injectBadge(html, url.hostname), { status: res.status, statusText: res.statusText, headers: out });
+    return new Response(injectBadge(html, publicUrl.hostname), { status: res.status, statusText: res.statusText, headers: out });
   }
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
 }
 
-export async function serveSite(req: Request, bucket: R2BucketLike, domain?: string, opts: { workersSubdomain?: string; fetcher?: typeof fetch; proxyKeyFor?: (worker: string) => Promise<string | null> } = {}): Promise<Response> {
-  if (opts.workersSubdomain) {
+function proxyRequestHeaders(req: Request, publicHost: string, proxyKey?: string | null): Headers {
+  const headers = new Headers();
+  for (const k of FORWARD_REQUEST_HEADERS) { const v = req.headers.get(k); if (v !== null) headers.set(k, v); }
+  headers.set("X-Forwarded-Host", publicHost);
+  headers.set("X-Forwarded-Proto", "https");
+  if (proxyKey) headers.set("X-Devstack-Proxy", proxyKey);
+  return headers;
+}
+
+/**
+ * Forward a request to the project's own Worker on workers.dev (legacy path).
+ * Prefer {@link dispatchToWorker} when the WfP dispatcher binding is available.
+ */
+export async function proxyToWorker(req: Request, worker: string, subdomain: string, opts: ProxyOpts | typeof fetch = {}): Promise<Response> {
+  const o: ProxyOpts = typeof opts === "function" ? { fetcher: opts } : opts;
+  const fetcher = o.fetcher ?? fetch;
+  const url = new URL(req.url);
+  const expectedHost = `${worker}.${subdomain}.workers.dev`;
+  if (!SERVER_WORKER.test(worker) || PLATFORM_WORKERS.has(worker) || !/^[a-z0-9-]{1,63}$/.test(subdomain)) return unavailable(502);
+  const target = new URL(`https://${expectedHost}`);
+  target.pathname = url.pathname;
+  target.search = url.search;
+  if (target.host !== expectedHost || target.protocol !== "https:") return unavailable(502);
+  const headers = proxyRequestHeaders(req, url.hostname, o.proxyKey);
+  let res: Response;
+  try {
+    res = await fetcher(target.toString(), { method: req.method, headers, body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body, redirect: "manual" });
+  } catch {
+    return unavailable(502);
+  }
+  return finalizeProxyResponse(req, res, worker, url, target);
+}
+
+/** Invoke a user Worker in the WfP dispatch namespace (no public workers.dev URL). */
+export async function dispatchToWorker(req: Request, worker: string, dispatcher: DispatcherLike, opts: ProxyOpts = {}): Promise<Response> {
+  if (!SERVER_WORKER.test(worker) || PLATFORM_WORKERS.has(worker)) return unavailable(502);
+  const url = new URL(req.url);
+  const headers = proxyRequestHeaders(req, url.hostname, opts.proxyKey);
+  const inner = new Request(url.toString(), {
+    method: req.method,
+    headers,
+    body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
+    redirect: "manual",
+  });
+  let res: Response;
+  try {
+    res = await dispatcher.get(worker).fetch(inner);
+  } catch {
+    return unavailable(502);
+  }
+  return finalizeProxyResponse(req, res, worker, url, url);
+}
+
+export async function serveSite(req: Request, bucket: R2BucketLike, domain?: string, opts: { workersSubdomain?: string; dispatcher?: DispatcherLike; fetcher?: typeof fetch; proxyKeyFor?: (worker: string) => Promise<string | null> } = {}): Promise<Response> {
+  if (opts.dispatcher || opts.workersSubdomain) {
     const h = parseHost(new URL(req.url).hostname, domain);
     if (h.kind === "site") {
       const worker = await resolveServerWorker(bucket, h.label);
       if (worker) {
-        // No key → the guard refuses; fail closed with our page instead of leaking upstream errors.
         const key = opts.proxyKeyFor ? await opts.proxyKeyFor(worker) : null;
-        return proxyToWorker(req, worker, opts.workersSubdomain, { fetcher: opts.fetcher, proxyKey: key });
+        if (opts.dispatcher) return dispatchToWorker(req, worker, opts.dispatcher, { proxyKey: key });
+        return proxyToWorker(req, worker, opts.workersSubdomain!, { fetcher: opts.fetcher, proxyKey: key });
       }
     }
   }

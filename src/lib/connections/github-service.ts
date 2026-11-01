@@ -4,7 +4,6 @@ import { templateBuild } from "@/lib/projects/template-seed";
 import {
   commitFiles,
   createBranch,
-  createRepo,
   getBranchSha,
   GithubApiError,
   openPullRequest,
@@ -13,6 +12,8 @@ import {
 } from "@/lib/auth/github-api";
 import { consume, customerRules } from "@/lib/chat/limits";
 import type { D1Like } from "@/lib/chat/store";
+import { saveProjectFiles } from "@/lib/deploy/upload";
+import { putProjectSource } from "@/lib/hosting/sources";
 import { audit } from "./audit";
 import { LIMITS, changeBranchName, safeRepoName } from "./policy";
 import { insertProject, type ProjectRow } from "./projects";
@@ -39,28 +40,70 @@ export async function takeQuota(db: D1Like, uid: string, kind: "repo" | "pr" | "
   if (!r.ok) throw new ServiceError("rate_limited", `Daily ${kind} limit reached (${rules[kind]}/day). Resets at midnight Bangkok time. / ครบโควตา ${kind} ของวันนี้แล้ว`, 429);
 }
 
-/** Create a repo in the customer's account, optionally seed files in one commit, and record a project. */
+/**
+ * DISABLED: creating GitHub repos from DevStack caused account spam bans under load.
+ * Hosting path uses {@link createHostedProject} (R2 + D1 only). This stub keeps call sites
+ * failing closed with no GitHub API traffic.
+ */
 export async function createProjectRepo(
   db: D1Like,
-  token: string,
+  _token: string,
   uid: string,
   spec: { name: string; private: boolean; templateId?: string | null; description?: string; files?: FileChange[] },
   sites: R2BucketLike | null = null
 ): Promise<{ project: ProjectRow; htmlUrl: string; commit?: string }> {
   const name = safeRepoName(spec.name);
   if (!name) throw new ServiceError("invalid", "Repository name is invalid. / ชื่อ repo ไม่ถูกต้อง");
-  // Same slug gate as import/AI: checked before the GitHub repo is created.
   const slug = siteSlug(name);
   if (slug) await assertSlugUsable(db, slug, null, sites);
-  await takeQuota(db, uid, "repo");
-  const repo = await createRepo(token, { name, private: spec.private, description: spec.description });
-  const [owner, rname] = repo.fullName.split("/");
-  let commit: string | undefined;
-  if (spec.files?.length) commit = (await commitFiles(token, { owner, repo: rname, branch: repo.defaultBranch, message: "chore: scaffold from DevStack", files: spec.files })).sha;
-  const project: ProjectRow = { id: crypto.randomUUID(), user_id: uid, name, template_id: spec.templateId ?? null, repo_full_name: repo.fullName, default_branch: repo.defaultBranch, created_at: Date.now() };
-  await insertProject(db, { id: project.id, userId: uid, name, templateId: project.template_id, repo: repo.fullName, branch: repo.defaultBranch, build: spec.templateId ? templateBuild(spec.templateId) : null, slug });
-  await audit(db, uid, "project.created", repo.fullName);
-  return { project, htmlUrl: repo.htmlUrl, commit };
+  void uid;
+  throw new ServiceError(
+    "forbidden",
+    "Creating GitHub repositories from DevStack is disabled. New projects stay on DevStack hosting (R2) — use create hosted project / import an existing repo. / ปิดการสร้าง repo บน GitHub แล้ว",
+    403,
+  );
+}
+
+/** Create a DevStack-hosted project with optional template files. No GitHub create/push/clone. */
+export async function createHostedProject(
+  db: D1Like,
+  uid: string,
+  spec: { name: string; templateId?: string | null; description?: string; files?: FileChange[] },
+  sites: R2BucketLike | null = null,
+): Promise<{ project: ProjectRow; sourceSha: string | null }> {
+  const name = safeRepoName(spec.name);
+  if (!name) throw new ServiceError("invalid", "Project name is invalid. / ชื่อโปรเจกต์ไม่ถูกต้อง");
+  const slug = siteSlug(name);
+  if (slug) await assertSlugUsable(db, slug, null, sites);
+  const count = await db.prepare("SELECT COUNT(*) AS n FROM projects WHERE user_id = ?1").bind(uid).first<{ n: number }>();
+  if (Number(count?.n ?? 0) >= 100) throw new ServiceError("limit", "Project limit reached (100).", 409);
+  const id = crypto.randomUUID();
+  const templateId = spec.templateId ?? null;
+  const project: ProjectRow = {
+    id, user_id: uid, name, template_id: templateId, repo_full_name: null, default_branch: null,
+    created_at: Date.now(), slug, source: "hosted", provider: "devstack-sites",
+  };
+  await insertProject(db, {
+    id, userId: uid, name, templateId, repo: null, branch: null,
+    build: templateId ? templateBuild(templateId) : null, slug,
+  });
+  await db.prepare("UPDATE projects SET source = 'hosted', provider = 'devstack-sites' WHERE id = ?1 AND user_id = ?2").bind(id, uid).run().catch(() => null);
+  let sourceSha: string | null = null;
+  if (spec.files?.length) {
+    const bundle = spec.files
+      .filter((f) => f.content !== null && typeof f.path === "string")
+      .map((f) => ({ path: f.path, bytes: new TextEncoder().encode(f.content as string) }));
+    if (bundle.length) {
+      await saveProjectFiles(db, id, bundle);
+      if (sites) {
+        const put = await putProjectSource(sites, id, bundle);
+        sourceSha = put.sha256;
+      }
+    }
+  }
+  await audit(db, uid, "project.created", `hosted:${id}`);
+  void spec.description;
+  return { project, sourceSha };
 }
 
 /** Branch from base, commit all files in one Git Data commit, open a PR. The default branch is never written directly. */

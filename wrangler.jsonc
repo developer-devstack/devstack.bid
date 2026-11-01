@@ -59,6 +59,7 @@
     "DEVSTACK_ADMIN_GITHUB_IDS": "326990420",
     // Account for per-project server Workers (token: SITES_CF_API_TOKEN secret, Workers Scripts: Edit).
     "SITES_CF_ACCOUNT_ID": "2d92bd5b25768fa9093d6adc0a8887fc",
+    "SITES_DISPATCH_NAMESPACE": "devstack-sites",
     "OPENAI_MODEL": "gpt-6.1-sol",
     "OPENAI_MAX_OUTPUT_TOKENS": "6000",
     "OPENAI_TIMEOUT_MS": "75000",

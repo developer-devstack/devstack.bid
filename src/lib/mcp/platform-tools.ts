@@ -6,7 +6,7 @@ import { startContainerBuild } from "@/lib/build/executor";
 import { getJob, jobView, listEvents } from "@/lib/build/jobs";
 import { audit } from "@/lib/connections/audit";
 import { loadGithubToken, resolveSealKeys } from "@/lib/connections/credentials";
-import { createProjectRepo, serviceErrorBody } from "@/lib/connections/github-service";
+import { createHostedProject, serviceErrorBody } from "@/lib/connections/github-service";
 import { getProject, listProjects, projectView } from "@/lib/connections/projects";
 import { cancelDeployment, deploymentView, getDeployment, listDeployments } from "@/lib/deploy/service";
 import { templateSeedFiles } from "@/lib/projects/template-seed";
@@ -29,10 +29,10 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
 const s = (description: string) => ({ type: "string", description });
 
 export const PLATFORM_TOOLS: ToolDef[] = [
-  { name: "list_project_templates", description: "List the template ids that create_project can seed a new GitHub repository from.", inputSchema: obj({}), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
+  { name: "list_project_templates", description: "List the template ids that create_project can seed a new DevStack-hosted project from.", inputSchema: obj({}), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
   { name: "list_projects", description: "List your DevStack projects (sites). Requires projects:read; only this key owner's projects are returned.", inputSchema: obj({}), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
   { name: "get_project", description: "Read one of your projects with its recent deployments. Requires projects:read.", inputSchema: obj({ projectId: s("Project id from list_projects") }, ["projectId"]), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
-  { name: "create_project", description: "Create a new GitHub repository in your linked GitHub account and register it as a DevStack project, optionally seeded from a template. Creates a real repo and counts toward the daily project quota. Requires projects:write and a GitHub-linked account; ask the user first.", inputSchema: obj({ name: s("Repository/project name"), templateId: { type: "string", enum: [...KNOWN_TEMPLATE_IDS] }, description: s("Optional repository description"), private: { type: "boolean", description: "Private repository (default true)" } }, ["name"]), requiredScope: "projects:write", annotations: { openWorldHint: true } },
+  { name: "create_project", description: "Create a DevStack-hosted project (R2/D1) optionally seeded from a template. Does NOT create a GitHub repository. Requires projects:write; ask the user first.", inputSchema: obj({ name: s("Project name"), templateId: { type: "string", enum: [...KNOWN_TEMPLATE_IDS] }, description: s("Optional description"), private: { type: "boolean", description: "Ignored (kept for compatibility)" } }, ["name"]), requiredScope: "projects:write", annotations: { openWorldHint: true } },
   { name: "list_deployments", description: "List a project's deployment timeline. Requires projects:read.", inputSchema: obj({ projectId: s("Project id") }, ["projectId"]), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
   { name: "get_deployment", description: "Read one deployment's status, URL and build job. Requires projects:read.", inputSchema: obj({ deploymentId: s("Deployment id") }, ["deploymentId"]), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
   { name: "get_deployment_logs", description: "Read redacted build log lines after a sequence number (resumable; pass the returned `next`). Requires projects:read.", inputSchema: obj({ deploymentId: s("Deployment id"), after: { type: "integer", minimum: 0 } }, ["deploymentId"]), requiredScope: "projects:read", annotations: { readOnlyHint: true } },
@@ -86,18 +86,14 @@ export async function runPlatformTool(name: string, args: Record<string, unknown
         return { ok: true, data: { deployment: deploymentView(d), job: job ? jobView(job) : null, events, next: events.length ? events[events.length - 1].seq : after } };
       }
       case "create_project": {
-        if (account.provider !== "github") return fail("github_required", "Sign in to DevStack with GitHub to create projects.");
         const projectName = str(args.name);
         if (!projectName) return fail("invalid", "name is required.");
         const templateId = typeof args.templateId === "string" && (KNOWN_TEMPLATE_IDS as readonly string[]).includes(args.templateId) ? args.templateId : null;
         if (args.templateId !== undefined && !templateId) return fail("invalid", "Unknown templateId; call list_project_templates.");
-        const keys = await sealKeys(cookieSecret);
-        const token = await loadGithubToken(db, keys, uid);
-        if (!token) return fail("reauth", "Reconnect GitHub in DevStack first.");
         const description = typeof args.description === "string" ? args.description.slice(0, 300) : undefined;
         const files = templateId ? templateSeedFiles(templateId, projectName, description) : undefined;
-        const r = await createProjectRepo(db, token, uid, { name: projectName, private: args.private !== false, templateId, description, files }, (await routeBuildBindings()).sites);
-        return { ok: true, data: { project: projectView(r.project), url: r.htmlUrl, commit: r.commit ?? null } };
+        const r = await createHostedProject(db, uid, { name: projectName, templateId, description, files }, (await routeBuildBindings()).sites);
+        return { ok: true, data: { project: projectView(r.project), url: null, commit: null, sourceSha: r.sourceSha, hosting: "devstack" } };
       }
       case "trigger_deploy": {
         const environment = args.environment === "production" ? "production" : "preview";

@@ -1,11 +1,15 @@
 /**
- * Container build executor (Milestone 2). Flow:
- *   import / redeploy → startContainerBuild (build_jobs row + deployments row + Queue message)
- *   Queue consumer   → runContainerJob: claim (cap 2) → container /build (clone at commit, install, build)
- *                      → stream redacted logs to build_events + R2 → /artifact tar → R2 → site files
- *                      → preview hostname (and production alias for production builds).
- * The GitHub token goes to the container in the request body only; it is never logged or stored.
- * Live URLs need the *.devstack.bid wildcard (DNS + route). Until SITES_DNS_READY=1 the URL is reported Blocked.
+ * Container build executor. Flow:
+ *   import / redeploy / hosted → startContainerBuild (build_jobs + deployments + Queue)
+ *   Queue consumer → runContainerJob: claim → container build → artifact → R2 / WfP user Worker
+ *
+ * Source modes:
+ *   - archive (default for DevStack-hosted projects): R2 `sources/<id>/latest.tar` → POST /source → /build
+ *     No GitHub clone, token, create, or push.
+ *   - github (optional import of an *existing* user repo): clone via user OAuth only; never creates repos.
+ *
+ * SSR uploads go to Workers for Platforms (`SITES_DISPATCH_NAMESPACE`), not standalone account Workers.
+ * Live URLs need the *.devstack.bid wildcard. Until SITES_DNS_READY=1 the URL is reported Blocked.
  */
 import type { D1Like } from "@/lib/chat/store";
 import { loadGithubToken, open, type SealKeys } from "@/lib/connections/credentials";
@@ -15,6 +19,7 @@ import { getBranchSha } from "@/lib/auth/github-api";
 import { safeBranch } from "@/lib/auth/github-policy";
 import { previewHost, productionHost, siteSlug } from "@/lib/hosting/hostnames";
 import { promoteProduction, publishPreview, publishServer, writeSite } from "@/lib/hosting/publish";
+import { getProjectSourceTar, sourceTarKey } from "@/lib/hosting/sources";
 import { CfApiError, deployServerWorker, readServerBundle, serverWorkerName, type CfApi } from "@/lib/hosting/server-worker";
 import { sanitizeLog } from "@/lib/deploy/sanitize";
 import type { R2BucketLike } from "@/lib/hosting/serve";
@@ -79,9 +84,11 @@ export async function startContainerBuild(
 ): Promise<{ job: BuildJobRow; deploymentId: string; previewUrl: string; productionUrl: string | null }> {
   const missing = missingInfra(b);
   if (missing.length) throw new ServiceError("blocked", `Build executor not provisioned (missing: ${missing.join(", ")}). / ยังไม่ได้เปิดระบบ build`, 503);
-  if (!project.repo_full_name) throw new ServiceError("invalid", "Container builds need a GitHub repository.", 422);
   const slug = siteSlug(project.slug || project.name);
   if (!slug) throw new ServiceError("invalid", "Project name cannot be used as a site hostname.", 422);
+  const archiveMode = !project.repo_full_name;
+  if (archiveMode && !b.sites) throw new ServiceError("blocked", "R2 SITES binding is not provisioned for hosted source builds.", 503);
+
   // Tier limits apply to every trigger (manual, import, AI turn, webhook): resolved from the user's stable id.
   // Same idempotency key already queued/built (e.g. ai-turn route + webhook for one AI commit): reuse it without spending quota.
   if (opts.idempotencyKey) {
@@ -94,21 +101,35 @@ export async function startContainerBuild(
   const lim = opts.limits ?? (await limitsForUser(db, uid));
   const kv = opts.kv ?? b.kv ?? null;
   if ((await userBuildsToday(db, uid)) >= lim.buildsPerDay) throw new ServiceError("limit", `Daily build limit reached (${lim.buildsPerDay}/day). / ครบโควตา build วันนี้แล้ว`, 429);
-  const token = await loadGithubToken(db, keys, uid);
-  if (!token) throw new ServiceError("reauth", "Connect GitHub first. / เชื่อมต่อ GitHub ก่อน", 401);
-  const ref = safeBranch(opts.ref || project.production_branch || project.default_branch || "main");
-  if (!ref) throw new ServiceError("invalid", "Invalid branch.", 400);
-  const [owner, repo] = project.repo_full_name.split("/");
-  // Webhook builds pin the exact pushed commit (GitHub-signed payload); others resolve the branch head.
-  const pinned = opts.commit && /^[a-f0-9]{40}$/i.test(opts.commit) ? opts.commit.toLowerCase() : null;
-  const commit = pinned ?? (await lookup(token, owner, repo, ref));
-  if (!commit) throw new ServiceError("invalid", `Branch ${ref} not found.`, 404);
-  // Hourly window is consumed only after token + ref checks pass (a failed precondition costs nothing).
+
+  let ref: string;
+  let commit: string;
+  if (archiveMode) {
+    // Hosted path: source of truth is R2 — no GitHub token, create, push, or clone.
+    const tar = await getProjectSourceTar(b.sites!, project.id);
+    if (!tar?.length) throw new ServiceError("invalid", "No project source archive on DevStack hosting. Upload files or create from a template first. / ยังไม่มีซอร์สบน DevStack", 422);
+    const digest = await crypto.subtle.digest("SHA-256", tar.buffer.slice(tar.byteOffset, tar.byteOffset + tar.byteLength) as ArrayBuffer);
+    commit = [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, "0")).join("").slice(0, 40);
+    ref = "hosted";
+  } else {
+    const token = await loadGithubToken(db, keys, uid);
+    if (!token) throw new ServiceError("reauth", "Connect GitHub first. / เชื่อมต่อ GitHub ก่อน", 401);
+    const branch = safeBranch(opts.ref || project.production_branch || project.default_branch || "main");
+    if (!branch) throw new ServiceError("invalid", "Invalid branch.", 400);
+    ref = branch;
+    const [owner, repo] = project.repo_full_name!.split("/");
+    const pinned = opts.commit && /^[a-f0-9]{40}$/i.test(opts.commit) ? opts.commit.toLowerCase() : null;
+    const resolved = pinned ?? (await lookup(token, owner, repo, ref));
+    if (!resolved) throw new ServiceError("invalid", `Branch ${ref} not found.`, 404);
+    commit = resolved;
+  }
+
+  // Hourly window is consumed only after preconditions pass (a failed precondition costs nothing).
   if (!(await kvRateLimit(kv, buildHourKey(uid), lim.buildsPerHour, 3600))) throw new ServiceError("limit", `Hourly build limit reached (${lim.buildsPerHour}/hour). / build ถี่เกินไป รอสักครู่`, 429);
   const environment = opts.environment ?? "production";
   const { job, created } = await createBuildJob(db, {
     projectId: project.id, userId: uid, executor: "cf-container", environment, trigger: opts.trigger ?? "manual", commitSha: commit, ref, maxAttempts: 2,
-    config: { ...buildSettings(project), slug }, idempotencyKey: opts.idempotencyKey ?? null,
+    config: { ...buildSettings(project), slug, source: archiveMode ? "archive" : "github" }, idempotencyKey: opts.idempotencyKey ?? null,
   });
   if (!created) {
     // Same commit/ref/environment already queued or built (e.g. push + PR synchronize): reuse it.
@@ -120,7 +141,10 @@ export async function startContainerBuild(
   const deploymentId = crypto.randomUUID();
   await db.prepare("INSERT INTO deployments (id, project_id, user_id, ref, commit_sha, target, status, build_job_id, trigger, environment) VALUES (?1, ?2, ?3, ?4, ?5, 'devstack-sites', 'queued', ?6, ?7, ?8)")
     .bind(deploymentId, project.id, uid, ref, commit, job.id, job.trigger, environment).run();
-  await appendEvent(db, job.id, { phase: "queued", message: `Queued build of ${project.repo_full_name}@${ref} (commit ${commit.slice(0, 7)}).` });
+  const queuedMsg = archiveMode
+    ? `Queued archive build of hosted sources (${sourceTarKey(project.id)}, sha ${commit.slice(0, 7)}).`
+    : `Queued build of ${project.repo_full_name}@${ref} (commit ${commit.slice(0, 7)}).`;
+  await appendEvent(db, job.id, { phase: "queued", message: queuedMsg });
   await b.queue!.send({ jobId: job.id });
   return { job, deploymentId, previewUrl: `https://${previewHost(slug, deploymentId)}`, productionUrl: environment === "production" ? `https://${productionHost(slug)}` : null };
 }
@@ -200,10 +224,15 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
     return true;
   };
 
-  if (!project || !project.repo_full_name || !dep) return fail("invalid_config", "Project or deployment no longer exists.");
-  const conn = await db.prepare("SELECT private FROM project_connections WHERE project_id = ?1 AND provider = 'github'").bind(job.project_id).first<{ private: number }>().catch(() => null);
-  // Public repositories clone without a token; private ones need the owner's GitHub connection.
-  if (!token && (!conn || conn.private !== 0)) return fail("invalid_config", "GitHub is not connected for this project owner; reconnect GitHub and redeploy.");
+  if (!project || !dep) return fail("invalid_config", "Project or deployment no longer exists.");
+  const cfgSource = (cfg as BuildSpecSettings & { slug: string; source?: string }).source;
+  const archiveMode = cfgSource === "archive" || !project.repo_full_name;
+  const conn = archiveMode ? null : await db.prepare("SELECT private FROM project_connections WHERE project_id = ?1 AND provider = 'github'").bind(job.project_id).first<{ private: number }>().catch(() => null);
+  // GitHub mode only: public repositories clone without a token; private ones need the owner's connection.
+  if (!archiveMode) {
+    if (!project.repo_full_name) return fail("invalid_config", "Project has no repository.");
+    if (!token && (!conn || conn.private !== 0)) return fail("invalid_config", "GitHub is not connected for this project owner; reconnect GitHub and redeploy.");
+  }
   if (!job.commit_sha) return fail("invalid_config", "Build has no commit.");
 
   const box = b.container!(jobId);
@@ -218,12 +247,22 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
     }
   }, 10_000);
   try {
-    await log.line(`Starting build container for ${project.repo_full_name}@${job.commit_sha.slice(0, 7)} (limit ${BUILD_TIMEOUT_MS / 60_000} min).`);
+    if (archiveMode) {
+      await log.line(`Starting archive build from R2 sources (sha ${job.commit_sha.slice(0, 7)}, limit ${BUILD_TIMEOUT_MS / 60_000} min).`);
+      const tar = await getProjectSourceTar(b.sites!, project.id);
+      if (!tar?.length) return fail("invalid_config", "Hosted source archive missing from R2.");
+      const up = await box.fetch("http://container/source", { method: "POST", headers: { "Content-Type": "application/x-tar" }, body: tar as unknown as BodyInit });
+      if (!up.ok) return fail("executor_lost", `Could not upload source archive to container (HTTP ${up.status}).`);
+    } else {
+      await log.line(`Starting build container for ${project.repo_full_name}@${job.commit_sha.slice(0, 7)} (limit ${BUILD_TIMEOUT_MS / 60_000} min).`);
+    }
     const res = await box.fetch("http://container/build", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Public repos clone anonymously: the owner token is sent only when the repo is private (or unknown).
-      body: JSON.stringify({ repo: project.repo_full_name, commit: job.commit_sha, root: cfg.root ?? "", install: cfg.install, build: cfg.build, output: cfg.output, env, token: conn && conn.private === 0 ? null : token }),
+      body: JSON.stringify(archiveMode
+        ? { source: "archive", commit: job.commit_sha, root: cfg.root ?? "", install: cfg.install, build: cfg.build, output: cfg.output, env, token: null }
+        // Public repos clone anonymously: the owner token is sent only when the repo is private (or unknown).
+        : { repo: project.repo_full_name, commit: job.commit_sha, root: cfg.root ?? "", install: cfg.install, build: cfg.build, output: cfg.output, env, token: conn && conn.private === 0 ? null : token }),
     });
     if (!res.ok || !res.body) {
       // Surface the Containers runtime reason (e.g. "Failed to start container: …"), redacted like every log line.
@@ -269,8 +308,14 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
       // Name from ids (not the reusable slug); previews get their own Worker so they never replace production.
       const worker = await serverWorkerName(project.id, production ? null : dep.id);
       await log.line(`Server build detected: deploying the project Worker (${bundle.assets.length} assets).`);
-      try { await deployServerWorker(b.cfApi, worker, bundle, project.id); } catch (e) {
-        const code = e instanceof CfApiError ? e.code : String((e as Error)?.message ?? "error").replace(/[^a-z0-9_]/gi, "").slice(0, 40) || "error";
+      try {
+        await deployServerWorker(b.cfApi, worker, bundle, project.id);
+      } catch (e) {
+        const msg = String((e as Error)?.message ?? e);
+        if (msg === "wfp_required") {
+          return fail("invalid_config", "Server (SSR) hosting requires Workers for Platforms (SITES_DISPATCH_NAMESPACE). Standalone per-project Workers are disabled.");
+        }
+        const code = e instanceof CfApiError ? e.code : msg.replace(/[^a-z0-9_]/gi, "").slice(0, 40) || "error";
         // Full detail stays in server logs only; the user sees a stable error code.
         console.warn(JSON.stringify({ at: "server-worker-deploy", jobId, code, detail: e instanceof CfApiError ? e.detail : undefined }));
         return fail("cf_api", `Worker upload failed (error code ${code}).`);

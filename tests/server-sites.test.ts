@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assertCustomerWorker, checkOwnership, deployServerWorker, GUARD_MODULE, OWNER_TAG, proxyKey, readServerBundle, serverWorkerName, SERVER_COMPAT_DATE } from "@/lib/hosting/server-worker";
-import { proxyToWorker, serveSite } from "@/lib/hosting/serve";
+import { assertCustomerWorker, checkOwnership, deployServerWorker, GUARD_MODULE, OWNER_TAG, proxyKey, readServerBundle, scriptApiBase, serverWorkerName, SERVER_COMPAT_DATE } from "@/lib/hosting/server-worker";
+import { dispatchToWorker, proxyToWorker, serveSite } from "@/lib/hosting/serve";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const W = "site-0123456789abcdef0123";
@@ -44,7 +44,7 @@ function cfMock(opts: { tags?: string[] | null; exists?: boolean } = {}) {
   const calls: { url: string; auth: string | null; method?: string; body?: unknown }[] = [];
   const fetcher = (async (url: string, init: RequestInit) => {
     calls.push({ url, auth: new Headers(init.headers).get("authorization"), method: init.method, body: init.body });
-    if (url.endsWith("/script-settings")) {
+    if (url.endsWith("/script-settings") || url.endsWith("/settings")) {
       if (!opts.exists) return new Response(JSON.stringify({ success: false, errors: [{ code: 10007, message: "This Worker does not exist on your account." }] }), { status: 404 });
       return new Response(JSON.stringify({ success: true, result: { tags: opts.tags ?? [] } }), { status: 200 });
     }
@@ -58,8 +58,9 @@ const bundle = () => readServerBundle([{ path: "server.json", bytes: enc("{}") }
 describe("deployServerWorker", () => {
   it("checks ownership, uploads assets, guard + script with fixed flags and owner tag; token only in Authorization", async () => {
     const { calls, fetcher } = cfMock();
-    const r = await deployServerWorker({ accountId: "acc", token: "T", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "proj-1");
+    const r = await deployServerWorker({ accountId: "acc", token: "T", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "proj-1", { allowLegacyWorkers: true });
     expect(r.assets).toBe(1);
+    expect(r.via).toBe("legacy");
     expect(calls.map((c) => c.url.replace("https://api.cloudflare.com/client/v4/accounts/acc", ""))).toEqual([
       `/workers/scripts/${W}/script-settings`, `/workers/scripts/${W}/assets-upload-session`, "/workers/assets/upload?base64=true", `/workers/scripts/${W}`, `/workers/scripts/${W}/subdomain`,
     ]);
@@ -78,7 +79,7 @@ describe("deployServerWorker", () => {
   });
   it("refuses to overwrite a Worker owned by another project (slug reuse)", async () => {
     const { calls, fetcher } = cfMock({ exists: true, tags: [OWNER_TAG("other")] });
-    await expect(deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "proj-1")).rejects.toThrow("worker_owner_mismatch");
+    await expect(deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "proj-1", { allowLegacyWorkers: true })).rejects.toThrow("worker_owner_mismatch");
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
   });
   it("updates its own Worker", async () => {
@@ -87,14 +88,30 @@ describe("deployServerWorker", () => {
   });
   it("never PUTs platform Worker names", async () => {
     const { calls, fetcher } = cfMock();
-    await expect(deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, "nvx-stack-builder", bundle(), "p")).rejects.toThrow("invalid_worker_name");
+    await expect(deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, "nvx-stack-builder", bundle(), "p", { allowLegacyWorkers: true })).rejects.toThrow("invalid_worker_name");
     expect(calls).toHaveLength(0);
   });
   it("CF errors become a code; message detail stays off the code", async () => {
     const fetcher = (async () => new Response(JSON.stringify({ success: false, errors: [{ code: 10000, message: "Authentication error for account acc" }] }), { status: 403 })) as unknown as typeof fetch;
-    const err = await deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "p").catch((e) => e);
+    const err = await deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "p", { allowLegacyWorkers: true }).catch((e) => e);
     expect(err.code).toBe("cf_api_403_10000");
     expect(err.message).not.toMatch(/account/);
+  });
+  it("requires WfP dispatch namespace by default (no standalone Workers)", async () => {
+    const { fetcher } = cfMock();
+    await expect(deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, bundle(), "p")).rejects.toThrow("wfp_required");
+  });
+  it("uploads into the WfP dispatch namespace when configured", async () => {
+    const { calls, fetcher } = cfMock();
+    const r = await deployServerWorker(
+      { accountId: "acc", token: "T", proxySecret: "s".repeat(40), dispatchNamespace: "devstack-sites", fetcher },
+      W, bundle(), "proj-1",
+    );
+    expect(r.via).toBe("wfp");
+    const paths = calls.map((c) => c.url.replace("https://api.cloudflare.com/client/v4/accounts/acc", ""));
+    expect(paths.some((u) => u.includes("/workers/dispatch/namespaces/devstack-sites/scripts/"))).toBe(true);
+    expect(paths.some((u) => u.endsWith("/subdomain"))).toBe(false);
+    expect(scriptApiBase({ accountId: "acc", token: "T", dispatchNamespace: "devstack-sites" }, W)).toContain("/dispatch/namespaces/devstack-sites/scripts/");
   });
 });
 
@@ -119,8 +136,37 @@ describe("guard module", () => {
 });
 
 describe("devstack-sites server proxy", () => {
+
   const bucket = (rec: unknown) => ({ get: async (k: string) => (k === "hosts/shop.json" ? { text: async () => JSON.stringify(rec) } : null), put: async () => undefined }) as never;
   const project = (body: BodyInit | null, init: ResponseInit = {}) => new Response(body, { ...init, headers: { "x-devstack-origin": "project", ...(init.headers as Record<string, string> | undefined) } });
+
+  it("routes SSR via WfP dispatcher when bound", async () => {
+    const W = "site-" + "a".repeat(20);
+    let seen = "";
+    const dispatcher = {
+      get(name: string) {
+        expect(name).toBe(W);
+        return {
+          fetch: async (req: Request) => {
+            seen = req.headers.get("x-devstack-proxy") || "";
+            return new Response("ok", { status: 200, headers: { "x-devstack-origin": "project", "content-type": "text/plain" } });
+          },
+        };
+      },
+    };
+    const res = await serveSite(
+      new Request("https://shop.devstack.bid/api", { method: "GET" }),
+      bucket({ projectId: "p", deploymentId: "d1234567", worker: W }),
+      "devstack.bid",
+      { dispatcher, proxyKeyFor: async () => "KEY" },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(seen).toBe("KEY");
+    const direct = await dispatchToWorker(new Request("https://shop.devstack.bid/"), "nvx-stack-builder", dispatcher);
+    expect(direct.status).toBe(502);
+  });
+
 
   it("proxies any method with forwarded host and the per-worker key", async () => {
     let seen: { url: string; method?: string; host: string | null; key: string | null } | null = null;
@@ -368,7 +414,7 @@ describe("deployServerWorker asset MIME types", () => {
       { path: "assets/_next/static/chunks/x.css", bytes: enc("body{}") }, { path: "assets/_next/static/chunks/y.js", bytes: enc("1") },
       { path: "assets/font.woff2", bytes: enc("f") }, { path: "assets/blob.unknownext", bytes: enc("z") },
     ])!;
-    await deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, b, "p");
+    await deployServerWorker({ accountId: "a", token: "t", proxySecret: "s".repeat(40), fetcher }, W, b, "p", { allowLegacyWorkers: true });
     expect(uploads).toHaveLength(1);
     const typeOf = (p: string) => (uploads[0].get(manifest[p].hash) as Blob).type;
     expect(typeOf("/_next/static/chunks/x.css")).toMatch(/^text\/css/);

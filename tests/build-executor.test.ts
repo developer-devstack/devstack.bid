@@ -62,6 +62,10 @@ function scripted(lines: object[], tar?: Uint8Array): ContainerStub & { bodies: 
   return {
     bodies,
     async fetch(url, init) {
+      if (url.endsWith("/source")) {
+        bodies.push("SOURCE:" + (init?.body instanceof Uint8Array ? init.body.byteLength : String(init?.body ?? "").length));
+        return new Response("ok");
+      }
       if (url.endsWith("/build")) {
         bodies.push(String(init?.body));
         const enc = new TextEncoder();
@@ -236,4 +240,20 @@ describe.runIf(process.env.E2E_BUILD === "1")("e2e: real build of sveltejs/templ
       srv.kill();
     }
   }, 300_000);
+});
+
+describe("archive mode hosted build (no GitHub)", () => {
+  it("enqueues from R2 sources without a GitHub token or repo", async () => {
+    const { putProjectSource } = await import("@/lib/hosting/sources");
+    const db = sqliteD1();
+    db.raw.exec("INSERT INTO users (id) VALUES ('userA'); INSERT INTO projects (id, user_id, name, slug, source, provider, output_directory) VALUES ('proj-hosted-1', 'userA', 'hosted', 'hosted-app', 'hosted', 'devstack-sites', 'dist')");
+    const b = bindings(scripted([]));
+    await putProjectSource(b.sites, "proj-hosted-1", [{ path: "package.json", bytes: new TextEncoder().encode("{\"name\":\"h\"}") }, { path: "index.html", bytes: new TextEncoder().encode("<h1>") }]);
+    const p = db.raw.prepare("SELECT * FROM projects WHERE id = 'proj-hosted-1'").get() as never;
+    const r = await startContainerBuild(db, keys, b, "userA", p);
+    expect(r.job.ref).toBe("hosted");
+    expect(r.job.commit_sha).toMatch(/^[a-f0-9]{40}$/);
+    expect(JSON.parse(r.job.config_snapshot).source).toBe("archive");
+    expect(b.sent).toEqual([{ jobId: r.job.id }]);
+  });
 });

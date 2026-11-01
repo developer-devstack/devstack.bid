@@ -12,7 +12,7 @@ export const CUSTOMER_GITHUB_TOOLS = [
   fn("github_list_repositories", "List repositories the signed-in customer can push to (their own GitHub account).", {}, []),
   fn("github_read_tree", "List files in a repository at a branch/ref (recursive).", { ...repoArg, ref: { type: "string" } }, ["repo", "ref"]),
   fn("github_read_file", "Read one text file from a repository.", { ...repoArg, path: { type: "string" }, ref: { type: "string" } }, ["repo", "path", "ref"]),
-  fn("github_create_repo", "Create a new repository in the customer's GitHub account (daily quota, see docs/limits.md). Optionally seed files.", {
+  fn("github_create_repo", "Create a DevStack-hosted project (R2/D1). Does NOT create a GitHub repository. Optionally seed files.", {
     name: { type: "string" },
     private: { type: "boolean" },
     description: { type: "string" },
@@ -58,7 +58,7 @@ export const CUSTOMER_TOOL_LABELS: Record<string, string> = {
   github_list_repositories: "GitHub: list repositories",
   github_read_tree: "GitHub: read file tree",
   github_read_file: "GitHub: read file",
-  github_create_repo: "GitHub: create repository",
+  github_create_repo: "Create hosted project",
   github_create_branch: "GitHub: create branch",
   github_write_files: "GitHub: commit files",
   github_open_pull_request: "GitHub: open pull request",

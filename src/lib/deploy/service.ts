@@ -69,7 +69,7 @@ export const ERROR_HINTS: Record<string, string> = {
   cf_too_large: "Bundle too large for direct upload. Use the Deploy to Cloudflare button / Workers Builds.",
   missing_index: "No index.html at the repo root.",
   missing_entry: "Worker entry file not found (src/index.js).",
-  needs_build: "This project needs a build step. Use 'Prepare for Cloudflare' + the Deploy to Cloudflare button / Workers Builds.",
+  needs_build: "This project needs a build step. Click Deploy on DevStack (container build → *.devstack.bid), or zip the built output.",
   not_deployable: "This template is not deployable to Cloudflare Workers.",
   too_many_files: `More than ${LIMITS.maxFiles} files.`,
   too_large: `Bundle larger than ${LIMITS.maxBundleBytes / 1024 / 1024} MB.`,

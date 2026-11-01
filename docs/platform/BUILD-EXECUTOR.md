@@ -1,5 +1,7 @@
 # Build executor (Milestone 2): Containers + Queue + R2
 
+> Product path for Deploy / Retry (default): see [DEVSTACK-HOSTING.md](./DEVSTACK-HOSTING.md). User Cloudflare is optional.
+
 Status 2026-10-22: code complete and tested locally; **not provisioned** (see Blocked).
 
 ## Flow
