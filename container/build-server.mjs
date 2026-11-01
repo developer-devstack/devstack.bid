@@ -241,7 +241,7 @@ async function build(spec, emit) {
   }
   mkdirSync(HOME_DIR, { recursive: true });
   // Force the public registry so a leftover private .npmrc / env cannot 403 installs (install_failed).
-  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null" };
+  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null", NITRO_PRESET: "cloudflare_module" };
   const userEnv = {};
   const REGISTRY_ENV = /^(npm_config_registry|npm_config_always_auth|npm_config_userconfig|YARN_NPM_REGISTRY_SERVER|PNPM_REGISTRY)$/i;
   for (const [k, v] of Object.entries(spec.env ?? {})) if (ENVKEY.test(k) && !BLOCKED_ENV.has(k) && !REGISTRY_ENV.test(k) && typeof v === "string" && v.length <= 32_768) userEnv[k] = v;
@@ -320,15 +320,16 @@ async function build(spec, emit) {
   }
   const out = normalize(join(dir, spec.output || "."));
   if (!out.startsWith(SRC) || !existsSync(out) || !statSync(out).isDirectory()) return { ok: false, code: "missing_index", message: `output directory "${spec.output || "."}" not found` };
-  // Server app (OpenNext for Cloudflare): bundle .open-next/worker.js into one module + assets.
-  const openNext = existsSync(join(out, "worker.js")) && existsSync(join(out, "assets")) ? out : existsSync(join(dir, ".open-next", "worker.js")) ? join(dir, ".open-next") : null;
-  if (openNext && !existsSync(join(out, "index.html"))) {
-    const r = await bundleServer(dir, openNext, env, emit);
+  // SSR Worker outputs (OpenNext, Nitro/Nuxt cloudflare_module, …): bundle entry + assets for WfP.
+  // Static only when index.html exists and no server artifact was produced.
+  const serverArt = detectServerArtifact(dir, out);
+  if (serverArt) {
+    const r = await bundleServer(dir, serverArt, env, emit);
     if (state.canceled) return { ok: false, code: "canceled" };
     if (!r.ok) return r;
     state.output = r.output;
     emit({ t: "phase", phase: "uploading" });
-    return { ok: true, server: true };
+    return { ok: true, server: true, kind: serverArt.kind };
   }
   if (!existsSync(join(out, "index.html"))) return { ok: false, code: "missing_index", message: "index.html not found in the output directory (static output required)" };
   state.output = out;
@@ -336,24 +337,44 @@ async function build(spec, emit) {
   return { ok: true };
 }
 
-/** `wrangler deploy --dry-run` bundles the OpenNext worker (no Cloudflare credentials involved). */
-export async function bundleServer(dir, openNext, env, emit) {
+/**
+ * Detect SSR Worker artifacts: OpenNext (.open-next/worker.js + assets) or Nitro/Nuxt
+ * (.output/server/index.mjs + .output/public). Static sites are handled separately when index.html exists.
+ */
+export function detectServerArtifact(dir, out) {
+  const openNextDir = existsSync(join(out, "worker.js")) && existsSync(join(out, "assets"))
+    ? out
+    : existsSync(join(dir, ".open-next", "worker.js")) && existsSync(join(dir, ".open-next", "assets"))
+      ? join(dir, ".open-next")
+      : null;
+  if (openNextDir) return { kind: "opennext", main: join(openNextDir, "worker.js"), assets: join(openNextDir, "assets") };
+  const nitroMain = join(dir, ".output", "server", "index.mjs");
+  const nitroAssets = join(dir, ".output", "public");
+  if (existsSync(nitroMain) && existsSync(nitroAssets)) return { kind: "nitro", main: nitroMain, assets: nitroAssets };
+  return null;
+}
+
+/** `wrangler deploy --dry-run` bundles a Worker entry + assets (no Cloudflare credentials involved). */
+export async function bundleServer(dir, artifact, env, emit) {
+  const { main, assets: assetsDir, kind } = typeof artifact === "string"
+    ? { main: join(artifact, "worker.js"), assets: join(artifact, "assets"), kind: "opennext" }
+    : artifact;
   const outDir = join(WORK, "server-bundle");
   mkdirSync(join(outDir, "worker"), { recursive: true });
   const flags = ["nodejs_compat", "global_fetch_strictly_public"];
   const date = "2026-10-01";
   const cfg = join(WORK, "server-wrangler.json");
-  writeFileSync(cfg, JSON.stringify({ name: "devstack-server-bundle", main: join(openNext, "worker.js"), compatibility_date: date, compatibility_flags: flags, assets: { directory: join(openNext, "assets"), binding: "ASSETS" } }));
-  emit({ t: "log", phase: "building", chunk: "$ wrangler deploy --dry-run (bundle server worker)\n" });
+  writeFileSync(cfg, JSON.stringify({ name: "devstack-server-bundle", main, compatibility_date: date, compatibility_flags: flags, assets: { directory: assetsDir, binding: "ASSETS" } }));
+  emit({ t: "log", phase: "building", chunk: `$ wrangler deploy --dry-run (bundle ${kind || "server"} worker)\n` });
   const local = join(dir, "node_modules", ".bin", "wrangler");
   const [cmd, args] = existsSync(local) ? [local, []] : ["npx", ["--yes", "wrangler@4"]];
   const r = await run(cmd, [...args, "deploy", "--dry-run", "--config", cfg, "--outdir", join(outDir, "worker")], { cwd: dir, env: { ...env, WRANGLER_SEND_METRICS: "false" } }, "building", emit);
   if (r.code !== 0) return { ok: false, code: "build_failed", message: `server bundle exited with ${r.code}` };
   if (!existsSync(join(outDir, "worker", "worker.js"))) return { ok: false, code: "missing_index", message: "server bundle produced no worker.js" };
-  const cp = await run("cp", ["-r", join(openNext, "assets"), join(outDir, "assets")], { cwd: dir, env }, "building", emit);
+  const cp = await run("cp", ["-r", assetsDir, join(outDir, "assets")], { cwd: dir, env }, "building", emit);
   if (cp.code !== 0) return { ok: false, code: "build_failed", message: "could not copy server assets" };
   for (const f of ["worker.js.map", "README.md"]) { try { rmSync(join(outDir, "worker", f), { force: true }); } catch {} }
-  writeFileSync(join(outDir, "server.json"), JSON.stringify({ compatibility_date: date, compatibility_flags: flags }));
+  writeFileSync(join(outDir, "server.json"), JSON.stringify({ compatibility_date: date, compatibility_flags: flags, kind: kind || "server" }));
   return { ok: true, output: outDir };
 }
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Nitro/Nuxt SSR on Workers for Platforms:** build container sets `NITRO_PRESET=cloudflare_module`, detects Nitro `.output/server` (and OpenNext), deploys Worker+assets — no longer fails Nuxt SSR builds with `missing_index`.
 - Build quota no longer counts `failed` / `canceled` / `timed_out` jobs (daily + hourly, D1). Retries after
   `install_failed` no longer burn the free-tier 3/hour cap. Hourly hard limit moved from Workers KV to D1
   (same UTC hour bucket).
