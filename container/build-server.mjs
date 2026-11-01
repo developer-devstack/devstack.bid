@@ -113,6 +113,113 @@ export function openNextInstallCmd(dir, pm) {
   return `npm install --no-save ${OPENNEXT_PKG}`;
 }
 
+/** Patched floors matching @opennextjs/cloudflare peer: >=15.5.28 <16 || >=16.4.1 (also covers known Next advisories). */
+export const OPENNEXT_NEXT_MIN_15 = "15.5.28";
+export const OPENNEXT_NEXT_MIN_16 = "16.4.3";
+
+/** Strip npm range prefixes and return [major,minor,patch] or null. */
+export function parseSemver(raw) {
+  if (typeof raw !== "string") return null;
+  const m = raw.trim().replace(/^[\^~>=<\s]+/, "").match(/^(\d+)\.(\d+)\.(\d+)/);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+function cmpSemver(a, b) {
+  for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; }
+  return 0;
+}
+
+/** True when installed next already satisfies OpenNext's peer range. */
+export function nextSatisfiesOpenNext(raw) {
+  const v = parseSemver(raw);
+  if (!v) return false;
+  if (v[0] === 15) return cmpSemver(v, parseSemver(OPENNEXT_NEXT_MIN_15)) >= 0;
+  if (v[0] === 16) return cmpSemver(v, parseSemver("16.4.1")) >= 0;
+  return v[0] > 16;
+}
+
+/** Target next version for a workspace bump (stay on 15.x when possible). */
+export function targetNextForOpenNext(raw) {
+  const v = parseSemver(raw);
+  if (v && v[0] === 15) return OPENNEXT_NEXT_MIN_15;
+  return OPENNEXT_NEXT_MIN_16;
+}
+
+/**
+ * If package.json pins a next that breaks @opennextjs/cloudflare, rewrite next (+ eslint-config-next
+ * when present; keep react/react-dom declarations but reinstall them alongside so the lockfile stays
+ * consistent) in the build workspace only. Returns an install command that never uses --force.
+ * Null when already compatible or not a Next app.
+ */
+export function ensureNextForOpenNext(dir, pm) {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync(pkgPath)) return null;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); } catch { return null; }
+  const deps = pkg.dependencies || {};
+  const dev = pkg.devDependencies || {};
+  const where = deps.next != null ? "dependencies" : (dev.next != null ? "devDependencies" : null);
+  if (!where) return null;
+  const from = String(pkg[where].next);
+  if (nextSatisfiesOpenNext(from)) return null;
+  const to = targetNextForOpenNext(from);
+  const bumped = [{ name: "next", from, to, section: where }];
+  pkg[where].next = to;
+
+  const setIfPresent = (name, version) => {
+    for (const section of ["dependencies", "devDependencies"]) {
+      const bag = pkg[section];
+      if (!bag || bag[name] == null) continue;
+      const prev = String(bag[name]);
+      if (prev === version) return;
+      bag[name] = version;
+      bumped.push({ name, from: prev, to: version, section });
+      return;
+    }
+  };
+  setIfPresent("eslint-config-next", to);
+  // Matching create-next-app companions: keep React on the 19 line already used with Next 15/16.
+  // Only rewrite when the declared pin is a concrete semver (exact or ^/~ of a concrete version).
+  for (const name of ["react", "react-dom"]) {
+    for (const section of ["dependencies", "devDependencies"]) {
+      const bag = pkg[section];
+      if (!bag || bag[name] == null) continue;
+      const prev = String(bag[name]);
+      const parsed = parseSemver(prev);
+      if (!parsed || parsed[0] !== 19) break; // leave non-19 alone
+      // Keep the project's react minor/patch; reinstall alongside next so the lockfile resolves.
+      // Do not rewrite package.json for react — peers already allow ^19.0.0.
+      break;
+    }
+  }
+
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  const specs = bumped.map((b) => `${b.name}@${b.to}`);
+  // Reinstall existing react/react-dom specs (unchanged) so npm/pnpm refresh the lock with new next.
+  for (const name of ["react", "react-dom"]) {
+    for (const section of ["dependencies", "devDependencies"]) {
+      const bag = pkg[section];
+      if (!bag || bag[name] == null) continue;
+      const raw = String(bag[name]);
+      const v = parseSemver(raw);
+      specs.push(v ? `${name}@${v[0]}.${v[1]}.${v[2]}` : `${name}@${raw.replace(/^[\^~]/, "")}`);
+      break;
+    }
+  }
+  const seen = new Set();
+  const uniq = [];
+  for (const s of specs) { if (!seen.has(s)) { seen.add(s); uniq.push(s); } }
+  let installCmd;
+  if (pm === "pnpm") installCmd = `pnpm add ${uniq.join(" ")}`;
+  else if (pm === "yarn") installCmd = `yarn add ${uniq.join(" ")}`;
+  else if (pm === "bun") installCmd = `bun add ${uniq.join(" ")}`;
+  else installCmd = `npm install ${uniq.join(" ")}`;
+  if (!SAFE_CMD.test(installCmd)) {
+    installCmd = pm === "pnpm" ? `pnpm add next@${to}` : pm === "yarn" ? `yarn add next@${to}` : pm === "bun" ? `bun add next@${to}` : `npm install next@${to}`;
+  }
+  return { from, to, bumped, installCmd };
+}
+
 async function extractArchive(emit) {
   const tarPath = join(WORK, "source.tar");
   if (!existsSync(tarPath)) return { ok: false, code: "invalid_config", message: "source archive missing; POST /source first" };
@@ -183,7 +290,19 @@ async function build(spec, emit) {
   }
   const added = prepareOpenNext(dir, buildCmd);
   if (added.length) emit({ t: "log", phase: "installing", chunk: `Repo has no Cloudflare config; added ${added.join(", ")} for this build (commit them to customize).\n` });
-  const adapter = buildCmd && /(^|\s)opennextjs-cloudflare(\s|$)/.test(buildCmd) ? openNextInstallCmd(dir, detected.pm) : null;
+  const wantsOpenNext = !!(buildCmd && /(^|\s)opennextjs-cloudflare(\s|$)/.test(buildCmd));
+  if (wantsOpenNext) {
+    const nextBump = ensureNextForOpenNext(dir, detected.pm);
+    if (nextBump) {
+      const list = nextBump.bumped.map((b) => `${b.name} ${b.from} → ${b.to}`).join(", ");
+      emit({ t: "log", phase: "installing", chunk: `next ${nextBump.from} is below @opennextjs/cloudflare's peer (needs >=15.5.28 on 15.x or >=16.4.1). Auto-bumping in the build workspace only: ${list}.\n$ ${nextBump.installCmd}\n` });
+      const a = argv(nextBump.installCmd);
+      const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
+      if (state.canceled) return { ok: false, code: "canceled" };
+      if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump next to ${nextBump.to} for OpenNext (exit ${r.code}); upgrade next in package.json to >=15.5.28 (15.x) or >=16.4.1` };
+    }
+  }
+  const adapter = wantsOpenNext ? openNextInstallCmd(dir, detected.pm) : null;
   if (adapter) {
     emit({ t: "log", phase: "installing", chunk: `@opennextjs/cloudflare is not a dependency; installing it for this build.\n$ ${adapter}\n` });
     const a = argv(adapter);

@@ -118,7 +118,14 @@ export function audit() {
     ["Studio (/studio/, browser bundle)", productionPackages(path.join(ROOT, "studio", "package-lock.json"))],
   ];
   const flagged = [];
-  for (const [label, pkgs] of sets) for (const p of pkgs) if (!isAllowed(p.license, p.name)) flagged.push({ ...p, set: label });
+  for (const [label, pkgs] of sets) {
+    for (const p of pkgs) {
+      if (isAllowed(p.license, p.name)) continue;
+      // next/wrangler optional native image deps (sharp / @img/sharp-*): LGPL, not shipped in the Worker.
+      if (p.optional && /^(sharp|@img\/sharp)/.test(p.name)) continue;
+      flagged.push({ ...p, set: label });
+    }
+  }
   return { sets, flagged };
 }
 
@@ -152,7 +159,7 @@ export function render({ sets, flagged }) {
   lines.push("", "## Exceptions and notes", "");
   for (const [name, e] of Object.entries(EXCEPTIONS)) lines.push(`- \`${name}\`: ${e.license}, ${e.reason}.`);
   lines.push(
-    "- `sharp` / `@img/sharp-libvips-*` (LGPL-3.0-or-later): optional native image library pulled in by `next` and `wrangler` for local builds and `next dev`. It is marked dev/optional in the lockfile, is not in the Worker bundle, and is not shipped. No action needed.",
+    "- `sharp` / `@img/sharp-libvips-*` (LGPL-3.0-or-later): optional native image library pulled in by `next` and `wrangler` for local builds and `next dev`. It is optional in the lockfile (and often also marked dev), is not in the Worker bundle, and is not shipped. Excluded from the allow-list check when `optional`. No action needed.",
     "- No dependency requires a paid or commercial license. WebContainers (`@webcontainer/api`, commercial terms for some production use) was removed in 0.8.0-rc.2.",
   );
   if (flagged.length) {
