@@ -120,16 +120,16 @@ archive container via `startHostingDeploy` (sources uploaded to R2 first).
 
 ## What this PR does **not** do (needs owner GO)
 
-Exact production steps that must wait for explicit GO:
+Production GO checklist (owner-approved 2026-11-01):
 
-1. Merge PR to `main` / prod deploy of `nvx-stack-builder`
-2. Remote D1 migrations (if any new ones are added later)
-3. Create Workers for Platforms **dispatch namespace** (suggested name: `devstack-sites`) and set secret `SITES_DISPATCH_NAMESPACE`
-4. Bind a **dispatcher Worker** (or extend `devstack-sites`) with `dispatch_namespaces` → that namespace; route `*.devstack.bid` SSR via it
-5. Ensure `SITES_CF_API_TOKEN` has Scripts:Edit on the dispatch namespace (not only account Workers)
-6. New R2 buckets only if not reusing `devstack-sites` for `sources/` prefix (default: reuse)
-7. Queues / Containers image push / DNS wildcard / other `SITES_*` secret changes beyond the namespace
-8. Enabling Workers for Platforms purchase on the Cloudflare account if still disabled (was API 10121)
+1. ~~Create WfP dispatch namespace `devstack-sites`~~ (done; do **not** reuse `one-origin`)
+2. ~~Bind `DISPATCHER` on serving Worker `devstack-sites`~~ (done)
+3. ~~Set `SITES_DISPATCH_NAMESPACE=devstack-sites` on `nvx-stack-builder`~~ (in wrangler vars; ships with merge)
+4. ~~Verify `SITES_CF_API_TOKEN` can upload scripts into the namespace~~ (probe upload+delete OK)
+5. Merge PR to `main` / prod deploy of `nvx-stack-builder` (this GO)
+6. Remote D1 migrations — **none required** for this change
+7. New R2 buckets — **none** (reuse `devstack-sites` `sources/` prefix)
+8. DNS wildcard / other secret changes — **no further DNS** in this GO
 
 ## API surface
 

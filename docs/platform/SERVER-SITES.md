@@ -22,8 +22,7 @@ many scripts — not one standalone account Worker per project.
 3. Platform (`src/lib/hosting/server-worker.ts`) wraps the module in the guard, then
    `PUT /accounts/:id/workers/dispatch/namespaces/:ns/scripts/:name` with assets upload.
 4. `publishServer` writes `hosts/<label>.json` with `{ worker: "site-<hash>" }`.
-5. `devstack-sites` routes SSR hosts via the dispatcher binding (GO) — until then, document
-   Blocked / proxy fallback is out of scope for default hosting.
+5. `devstack-sites` routes SSR hosts via the `DISPATCHER` binding to namespace `devstack-sites`.
 
 Script names remain `site-<hash(projectId)>` (production) and
 `site-<hash(projectId)>-<hash(deploymentId)>` (preview).
@@ -39,5 +38,5 @@ Script names remain `site-<hash(projectId)>` (production) and
 
 ## GO required
 
-Creating the dispatch namespace, dispatcher binding, DNS, and secrets is **not** done in this
-PR — see `DEVSTACK-HOSTING.md` GO list.
+Dispatch namespace `devstack-sites` + `DISPATCHER` binding on the serving Worker are provisioned
+with owner GO (see `DEVSTACK-HOSTING.md`).

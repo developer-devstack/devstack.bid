@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertCustomerWorker, checkOwnership, deployServerWorker, GUARD_MODULE, OWNER_TAG, proxyKey, readServerBundle, scriptApiBase, serverWorkerName, SERVER_COMPAT_DATE } from "@/lib/hosting/server-worker";
-import { proxyToWorker, serveSite } from "@/lib/hosting/serve";
+import { dispatchToWorker, proxyToWorker, serveSite } from "@/lib/hosting/serve";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const W = "site-0123456789abcdef0123";
@@ -136,8 +136,37 @@ describe("guard module", () => {
 });
 
 describe("devstack-sites server proxy", () => {
+
   const bucket = (rec: unknown) => ({ get: async (k: string) => (k === "hosts/shop.json" ? { text: async () => JSON.stringify(rec) } : null), put: async () => undefined }) as never;
   const project = (body: BodyInit | null, init: ResponseInit = {}) => new Response(body, { ...init, headers: { "x-devstack-origin": "project", ...(init.headers as Record<string, string> | undefined) } });
+
+  it("routes SSR via WfP dispatcher when bound", async () => {
+    const W = "site-" + "a".repeat(20);
+    let seen = "";
+    const dispatcher = {
+      get(name: string) {
+        expect(name).toBe(W);
+        return {
+          fetch: async (req: Request) => {
+            seen = req.headers.get("x-devstack-proxy") || "";
+            return new Response("ok", { status: 200, headers: { "x-devstack-origin": "project", "content-type": "text/plain" } });
+          },
+        };
+      },
+    };
+    const res = await serveSite(
+      new Request("https://shop.devstack.bid/api", { method: "GET" }),
+      bucket({ projectId: "p", deploymentId: "d1234567", worker: W }),
+      "devstack.bid",
+      { dispatcher, proxyKeyFor: async () => "KEY" },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(seen).toBe("KEY");
+    const direct = await dispatchToWorker(new Request("https://shop.devstack.bid/"), "nvx-stack-builder", dispatcher);
+    expect(direct.status).toBe(502);
+  });
+
 
   it("proxies any method with forwarded host and the per-worker key", async () => {
     let seen: { url: string; method?: string; host: string | null; key: string | null } | null = null;
