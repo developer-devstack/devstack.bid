@@ -33,19 +33,8 @@ const BASE_HEADERS = {
   "Content-Security-Policy": "frame-ancestors https://devstack.bid",
 };
 
+/** Abuse reports live at https://devstack.bid/report (footer link on the platform; no injected badge on user sites). */
 export const REPORT_URL = "https://devstack.bid/report";
-
-/** Small fixed footer added to every HTML page: who built it and where to report abuse. Escaped host only. */
-export function reportBadge(host: string): string {
-  const h = host.replace(/[^a-z0-9.-]/gi, "");
-  return `<a href="${REPORT_URL}?site=${encodeURIComponent(h)}" target="_blank" rel="noopener noreferrer" data-devstack-badge style="position:fixed;right:8px;bottom:8px;z-index:2147483647;font:12px/1.4 system-ui,sans-serif;background:#111;color:#fff;padding:4px 8px;border-radius:6px;text-decoration:none;opacity:.85">Built by a devstack.bid user · Report</a>`;
-}
-
-export function injectBadge(html: string, host: string): string {
-  const badge = reportBadge(host);
-  const i = html.toLowerCase().lastIndexOf("</body>");
-  return i >= 0 ? html.slice(0, i) + badge + html.slice(i) : html + badge;
-}
 
 /** Safe object path from a URL path: decoded, no traversal, no hidden files. */
 export function objectPath(pathname: string): string | null {
@@ -117,9 +106,6 @@ export function unavailable(status = 503): Response {
   );
 }
 
-type Appendable = { append(c: string, o: { html: boolean }): void };
-interface HTMLRewriterLike { on(sel: string, h: { element(e: Appendable): void }): HTMLRewriterLike; onDocument(h: { end(e: Appendable): void }): HTMLRewriterLike; transform(r: Response): Response }
-
 /**
  * One language from Accept-Language: the tag with the highest q (first wins on a tie). Thai → "th", anything
  * else → "en". Header missing or empty → "both".
@@ -187,23 +173,6 @@ async function finalizeProxyResponse(
     } catch {
       out.delete("location");
     }
-  }
-  const type = out.get("content-type") ?? "";
-  const lt = type.toLowerCase();
-  if ((lt.startsWith("text/html") || lt.startsWith("application/xhtml+xml")) && req.method !== "HEAD" && res.status !== 204 && res.status !== 304 && res.body) {
-    out.delete("content-encoding");
-    const Rewriter = (globalThis as { HTMLRewriter?: new () => HTMLRewriterLike }).HTMLRewriter;
-    const plain = new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
-    if (Rewriter) {
-      const badge = reportBadge(publicUrl.hostname);
-      let placed = false;
-      return new Rewriter()
-        .on("body", { element(e) { placed = true; e.append(badge, { html: true }); } })
-        .onDocument({ end(e) { if (!placed) e.append(badge, { html: true }); } })
-        .transform(plain);
-    }
-    const html = await plain.text();
-    return new Response(injectBadge(html, publicUrl.hostname), { status: res.status, statusText: res.statusText, headers: out });
   }
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
 }
@@ -284,17 +253,17 @@ export async function serveSite(req: Request, bucket: R2BucketLike, domain?: str
   const candidates = path === "" ? ["index.html"] : /\.[a-z0-9]+$/i.test(path) ? [path] : [`${path}.html`, `${path}/index.html`, path];
   for (const c of candidates) {
     const obj = await bucket.get(`sites/${deploymentId}/${c}`);
-    if (obj) return fileResponse(req, obj, c, 200, url.hostname);
+    if (obj) return fileResponse(req, obj, c, 200);
   }
   // SPA fallback (only when the build produced 200.html) then custom 404.html.
   const spa = await bucket.get(`sites/${deploymentId}/200.html`);
-  if (spa && !/\.[a-z0-9]+$/i.test(path)) return fileResponse(req, spa, "200.html", 200, url.hostname);
+  if (spa && !/\.[a-z0-9]+$/i.test(path)) return fileResponse(req, spa, "200.html", 200);
   const nf = await bucket.get(`sites/${deploymentId}/404.html`);
-  if (nf) return fileResponse(req, nf, "404.html", 404, url.hostname);
+  if (nf) return fileResponse(req, nf, "404.html", 404);
   return notFound();
 }
 
-async function fileResponse(req: Request, obj: R2ObjectLike & { text?(): Promise<string> }, path: string, status: number, host: string): Promise<Response> {
+async function fileResponse(req: Request, obj: R2ObjectLike & { text?(): Promise<string> }, path: string, status: number): Promise<Response> {
   const immutable = /(^|\/)(_next\/static|assets)\//.test(path) || /\.[0-9a-f]{8,}\.(js|css|woff2?)$/.test(path);
   const headers: Record<string, string> = {
     ...BASE_HEADERS,
@@ -303,10 +272,5 @@ async function fileResponse(req: Request, obj: R2ObjectLike & { text?(): Promise
   };
   if (obj.httpEtag) headers.ETag = obj.httpEtag;
   if (obj.httpEtag && req.headers.get("if-none-match") === obj.httpEtag) return new Response(null, { status: 304, headers });
-  if (headers["Content-Type"].startsWith("text/html")) {
-    if (req.method === "HEAD") return new Response(null, { status, headers });
-    const html = obj.text ? await obj.text() : await new Response(obj.body).text();
-    return new Response(injectBadge(html, host), { status, headers });
-  }
   return new Response(req.method === "HEAD" ? null : obj.body, { status, headers });
 }

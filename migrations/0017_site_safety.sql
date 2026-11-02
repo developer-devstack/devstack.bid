@@ -7,7 +7,7 @@ UPDATE projects SET slug = substr(slug, 1, 26) || '-' || lower(id)
    AND rowid NOT IN (SELECT MIN(rowid) FROM projects WHERE slug IS NOT NULL GROUP BY slug);
 CREATE UNIQUE INDEX projects_slug_global_uq ON projects (slug) WHERE slug IS NOT NULL;
 
--- 2) Abuse reports from the "Built by a devstack.bid user / Report" badge.
+-- 2) Abuse reports from /report (formerly linked from the user-site badge).
 CREATE TABLE site_reports (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   host       TEXT NOT NULL,

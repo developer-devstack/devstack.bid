@@ -187,7 +187,7 @@ describe("devstack-sites server proxy", () => {
     expect(h!.get("accept")).toBe("text/html");
     expect(h!.get("rsc")).toBe("1");
   });
-  it("strips every Set-Cookie (incl. Domain=devstack.bid) and applies platform headers + badge", async () => {
+  it("strips every Set-Cookie (incl. Domain=devstack.bid) and applies platform headers without badge", async () => {
     const up = new Headers({ "x-devstack-origin": "project", "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'self'", "x-content-type-options": "none" });
     up.append("set-cookie", "__Host-nvx_auth=evil; Domain=devstack.bid; Path=/");
     up.append("set-cookie", "local=1; Path=/");
@@ -198,7 +198,9 @@ describe("devstack-sites server proxy", () => {
     expect(res.headers.get("content-security-policy")).toContain("frame-ancestors https://devstack.bid");
     expect(res.headers.get("content-security-policy")).toContain("default-src 'self'");
     expect(res.headers.get("x-devstack-origin")).toBeNull();
-    expect(await res.text()).toContain("data-devstack-badge");
+    const body = await res.text();
+    expect(body).toBe("<html><body>hi</body></html>");
+    expect(body).not.toContain("data-devstack-badge");
   });
   it("ignores worker names that are not platform-issued site-*", async () => {
     for (const worker of ["nvx-stack-builder", "site-shop"]) {
@@ -286,33 +288,17 @@ describe("preview expired page", () => {
   });
 });
 
-describe("badge via HTMLRewriter when available", () => {
-  it("streams through HTMLRewriter (no res.text())", async () => {
-    const used: string[] = [];
-    class FakeRewriter { sel = ""; h: { element(e: { append(c: string, o: { html: boolean }): void }): void } | null = null; d: { end(e: { append(c: string, o: { html: boolean }): void }): void } | null = null;
-      on(sel: string, h: FakeRewriter["h"]) { this.sel = sel; this.h = h; return this; }
-      onDocument(d: FakeRewriter["d"]) { this.d = d; return this; }
-      transform(r: Response) { let added = ""; this.h!.element({ append: (c) => { added += c; } }); this.d!.end({ append: (c) => { added += c; } }); used.push(this.sel); return new Response(`[rewritten:${(added.match(/data-devstack-badge/g) ?? []).length}]`, r); } }
-    (globalThis as Record<string, unknown>).HTMLRewriter = FakeRewriter;
-    try {
-      const fetcher = (async () => new Response("<body>x</body>", { headers: { "x-devstack-origin": "project", "content-type": "text/html", "content-encoding": "gzip" } })) as unknown as typeof fetch;
-      const res = await proxyToWorker(new Request("https://shop.devstack.bid/"), W, "sub", { fetcher });
-      expect(await res.text()).toBe("[rewritten:1]"); // body found → no second badge at document end
-      expect(res.headers.get("content-encoding")).toBeNull();
-      expect(used).toEqual(["body"]);
-    } finally { delete (globalThis as Record<string, unknown>).HTMLRewriter; }
-  });
-});
 
-describe("badge at document end when there is no <body>", () => {
-  it("uses onDocument end", async () => {
-    let got = "";
-    class R { on() { return this; } onDocument(d: { end(e: { append(c: string): void }): void }) { d.end({ append: (c) => { got = c; } }); return this; } transform(r: Response) { return r; } }
-    (globalThis as Record<string, unknown>).HTMLRewriter = R;
-    try {
-      await proxyToWorker(new Request("https://shop.devstack.bid/"), W, "sub", (async () => new Response("<p>x", { headers: { "x-devstack-origin": "project", "content-type": "application/xhtml+xml" } })) as unknown as typeof fetch);
-      expect(got).toContain("data-devstack-badge");
-    } finally { delete (globalThis as Record<string, unknown>).HTMLRewriter; }
+
+
+describe("proxied HTML has no injected badge", () => {
+  it("returns upstream HTML unchanged (no data-devstack-badge)", async () => {
+    const fetcher = (async () => new Response("<html><body>hi</body></html>", { headers: { "x-devstack-origin": "project", "content-type": "text/html" } })) as unknown as typeof fetch;
+    const res = await proxyToWorker(new Request("https://shop.devstack.bid/"), W, "sub", { fetcher });
+    const body = await res.text();
+    expect(body).toBe("<html><body>hi</body></html>");
+    expect(body).not.toContain("data-devstack-badge");
+    expect(body).not.toContain("Built by a " + "devstack.bid" + " user");
   });
 });
 

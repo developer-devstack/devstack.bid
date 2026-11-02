@@ -91,7 +91,7 @@ describe("DevStack first-party hosting deploy", () => {
     expect(v1.deployment.status).toBe("live");
     // Second publish as preview, then promote via rollback of v1 (already production) — publish a new live and roll back.
     await saveProjectFiles(db, "proj-host-0001", [{ path: "index.html", bytes: enc("<h1>v2</h1>") }]);
-    const v2 = await publishUploadedSite(db, sites, true, "userA", project(), "production");
+    await publishUploadedSite(db, sites, true, "userA", project(), "production");
     expect(await (await serveSite(new Request("https://demo-site.devstack.bid/"), sites)).text()).toMatch(/v2/);
     const rb = await rollbackHostingDeployment(db, sites, "userA", v1.deployment.id);
     expect(rb.url).toBe("https://demo-site.devstack.bid");

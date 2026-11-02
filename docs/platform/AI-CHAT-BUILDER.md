@@ -9,7 +9,7 @@ published as plain static output to R2 `SITES` and served by the separate `sites
 - Generated code is untrusted. It is served only by `sites-worker` on `*.devstack.bid`, never by the platform apex.
 - Preview iframe: cross-origin, `sandbox="allow-scripts allow-forms"` (no same-origin, no popups, no top navigation).
 - Sites worker headers: `Content-Security-Policy: frame-ancestors https://devstack.bid`, `X-Content-Type-Options: nosniff`,
-  plus a "Built by a devstack.bid user · Report" badge on every HTML page linking to `/report` (stored in D1 `site_reports`).
+    Abuse reporting: platform footer links to `/report` (stored in D1 `site_reports`); user sites are not badged.
 - Session cookie: `__Host-nvx_auth` (Secure, Path=/, no Domain) so a user site cannot set or overwrite it; the legacy
   host-only `nvx_auth` is still read so nobody is logged out, and is cleared on the next sign-in or logout. No cookie is set
   with `Domain=.devstack.bid`.
