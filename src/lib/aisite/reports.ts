@@ -1,4 +1,4 @@
-/** Abuse reports for user sites (badge link). Stored in D1 site_reports for operator review. */
+/** Abuse reports for user sites (/report). Stored in D1 site_reports for operator review. */
 import type { D1Like } from "@/lib/chat/store";
 import { parseHost } from "@/lib/hosting/hostnames";
 

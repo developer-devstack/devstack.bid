@@ -5,7 +5,7 @@ import { routeBuildBindings } from "@/lib/build/bindings";
 import { startContainerBuild } from "@/lib/build/executor";
 import { getJob, jobView, listEvents } from "@/lib/build/jobs";
 import { audit } from "@/lib/connections/audit";
-import { loadGithubToken, resolveSealKeys } from "@/lib/connections/credentials";
+import { resolveSealKeys } from "@/lib/connections/credentials";
 import { createHostedProject, serviceErrorBody } from "@/lib/connections/github-service";
 import { getProject, listProjects, projectView } from "@/lib/connections/projects";
 import { cancelDeployment, deploymentView, getDeployment, listDeployments } from "@/lib/deploy/service";

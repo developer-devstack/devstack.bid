@@ -5,7 +5,7 @@ import { sqliteD1 } from "./helpers/sqlite-d1";
 import { authClearCookies, authSetCookies, HOST_AUTH_COOKIE, readAuthCookie, signUid } from "@/lib/chat/identity";
 import { sameOrigin, strictOrigin } from "@/lib/auth/github-policy";
 import { PREVIEW_SANDBOX, productionVersion } from "@/components/aisite/ai-site-builder";
-import { injectBadge, serveSite, type R2BucketLike } from "@/lib/hosting/serve";
+import { serveSite, type R2BucketLike } from "@/lib/hosting/serve";
 import { siteSlug } from "@/lib/hosting/hostnames";
 import { validateSlug } from "@/lib/projects/config";
 import { createAiProject, reserveAiTurn } from "@/lib/aisite/service";
@@ -73,20 +73,21 @@ function bucket(files: Record<string, string>): R2BucketLike {
   };
 }
 
-describe("2-3. preview sandbox, sites headers, badge, reserved slugs, reports", () => {
+describe("2-3. preview sandbox, sites headers, no badge, reserved slugs, reports", () => {
   it("preview sandbox has no popups or same-origin", () => {
     expect(PREVIEW_SANDBOX).toBe("allow-scripts allow-forms");
   });
-  it("sites worker sends frame-ancestors + nosniff and injects the report badge into HTML only", async () => {
+    it("sites worker sends frame-ancestors + nosniff and does not inject a user-created badge", async () => {
     const b = bucket({ "hosts/cafe.json": JSON.stringify({ deploymentId: "dep-00000001" }), "sites/dep-00000001/index.html": "<html><body><h1>x</h1></body></html>", "sites/dep-00000001/a.js": "1" });
     const res = await serveSite(new Request("https://cafe.devstack.bid/"), b);
     expect(res.headers.get("content-security-policy")).toBe("frame-ancestors https://devstack.bid");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     const html = await res.text();
-    expect(html).toMatch(/Built by a devstack\.bid user · Report<\/a><\/body>/);
-    expect(html).toContain("https://devstack.bid/report?site=cafe.devstack.bid");
+    expect(html).toBe("<html><body><h1>x</h1></body></html>");
+    expect(html).not.toContain("data-devstack-badge");
+    expect(html).not.toContain("Built by a devstack.bid user");
+    expect(html).not.toContain("/report?site=");
     expect(await (await serveSite(new Request("https://cafe.devstack.bid/a.js"), b)).text()).toBe("1");
-    expect(injectBadge("plain", 'x"><script>')).not.toContain("<script>");
   });
   it("reserves platform-like slugs", () => {
     for (const s of ["login", "auth", "admin", "www", "api", "app", "mail", "support", "billing", "signin", "devstack-login", "my-github"]) {

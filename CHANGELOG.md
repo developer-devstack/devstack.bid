@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0-rc.4] - 2026-11-02
+
+### Added
+- **Platform hosting showcase (documented):** every project gets its own `*.devstack.bid` subdomain; deploy and retry from the platform UI; zip / folder upload deploy without creating a GitHub repo; project commit and deploy board; auto rebuild on every push for imported repos with an active webhook.
+
+### Removed
+- Injected **"Built by a devstack.bid user · Report"** corner badge on hosted user sites (and thus in the platform preview iframe). Abuse reporting stays at `/report`; a discreet **Report a site** link is in the platform footer.
+
 ### Fixed
 - **Nitro/Nuxt SSR on Workers for Platforms:** build container sets `NITRO_PRESET=cloudflare_module`, detects Nitro `.output/server` (and OpenNext), deploys Worker+assets — no longer fails Nuxt SSR builds with `missing_index`.
 - **Server bundle entry normalization:** wrangler `--outdir` emits `index.js` for Nitro (`index.mjs` main); rename to `worker.js` so the artifact matches the OpenNext/WfP upload shape.
@@ -689,7 +697,8 @@ Test deployment: https://nvx-stack-builder.agen-sdk-work.workers.dev (workers.de
 - Vitest unit tests (21), `npm run export` CLI for contributors, MIT license, README (TH+EN),
   CONTRIBUTING, CODE_OF_CONDUCT, `.env.example`.
 
-[Unreleased]: https://github.com/OWNER/nvx-stack-builder/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.4...HEAD
+[0.13.0-rc.4]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.3...v0.13.0-rc.4
 [0.6.0]: https://github.com/OWNER/nvx-stack-builder/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/OWNER/nvx-stack-builder/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/OWNER/nvx-stack-builder/compare/v0.3.0...v0.5.0

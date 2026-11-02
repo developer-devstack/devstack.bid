@@ -33,7 +33,7 @@ describe("ai site service", () => {
     if (r.status !== "live") return;
     expect(r.url).toMatch(/^https:\/\/bean-house-[a-z0-9]{6}\.devstack\.bid$/);
     const res = await serveSite(new Request(`${r.url}/`), sites);
-    expect(await res.text()).toMatch(/^<h1>v1<\/h1><a [^>]*data-devstack-badge/);
+    expect(await res.text()).toBe("<h1>v1</h1>");
     expect((await serveSite(new Request("https://devstack.bid/"), sites)).status).toBe(404);
     const job = db.raw.prepare("SELECT status, executor FROM build_jobs WHERE id = ?").get(r.jobId) as { status: string; executor: string };
     expect(job).toEqual({ status: "succeeded", executor: "direct" });

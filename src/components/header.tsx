@@ -237,6 +237,7 @@ const LEGAL: { href: string; key: DictKey }[] = [
   { href: "/terms/api", key: "footer.apiPolicy" },
   { href: "/security", key: "footer.security" },
   { href: "/privacy", key: "footer.privacy" },
+  { href: "/report", key: "footer.report" },
 ];
 
 /** App-style pages (/chat, /chat/dev) fill the viewport, so they have no footer. */

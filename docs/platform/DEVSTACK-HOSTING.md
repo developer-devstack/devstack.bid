@@ -106,7 +106,7 @@ archive container via `startHostingDeploy` (sources uploaded to R2 first).
 | Preview host | `<slug>-<shortid>.devstack.bid` — immutable per deployment |
 | Rollback | `POST …/rollback` points production at a previous **live** deployment |
 | Reserved labels | `RESERVED` / `RESERVED_SUBSTRINGS` in `hostnames.ts` |
-| Abuse badge | HTML footer → report form → `site_reports` |
+| Abuse report | Platform footer → `/report` → `site_reports` |
 
 ## Abuse safeguards
 

@@ -495,6 +495,7 @@ const dict = {
   "footer.apiPolicy": { en: "API Use Policy", th: "นโยบายการใช้ API" },
   "footer.security": { en: "Report Security Issues", th: "แจ้งปัญหาความปลอดภัย" },
   "footer.privacy": { en: "Privacy Policy", th: "นโยบายความเป็นส่วนตัว" },
+  "footer.report": { en: "Report a site", th: "รายงานเว็บไซต์" },
   "footer.cookies": { en: "Cookie Preferences", th: "การตั้งค่าคุกกี้" },
   "footer.copyright": { en: "© 2026 devstack, Inc.", th: "© 2026 devstack, Inc." },
   "cookies.body": { en: "Choose which cookies this site may use. Your choice is saved in this browser only.", th: "เลือกคุกกี้ที่เว็บนี้ใช้ได้ ตัวเลือกจะบันทึกไว้ในเบราว์เซอร์นี้เท่านั้น" },
