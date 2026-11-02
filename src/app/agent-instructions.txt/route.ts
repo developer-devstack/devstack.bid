@@ -12,7 +12,7 @@ export async function GET() {
 ## How to call
 
 1. Read ${SITE_URL}/llms.txt for documentation URLs.
-2. Read ${SITE_URL}/openapi.json for HTTP operations and OAuth scopes.
+2. Read ${SITE_URL}/openapi.json for HTTP operations and OAuth scopes. OpenAI-compatible chat: POST ${SITE_URL}/api/v1/chat/completions (Bearer key with chat:write).
 3. Connect MCP at ${SITE_URL}/mcp (discovery: ${SITE_URL}/.well-known/mcp). Mint keys at ${SITE_URL}/settings/mcp.
 
 ## Do not

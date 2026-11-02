@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0-rc.5] - 2026-11-02
+
+### Added
+- **OpenAI-compatible chat API:** `POST /api/v1/chat/completions` and `GET /api/v1/models` with Bearer MCP keys (`chat:write` / `chat:read`). Reuses User Chat providers (Workers AI, Hugging Face, Vercel AI Gateway), quotas, and rate limits. Documented in OpenAPI, `/docs/reference/api-openai`, and llms indexes.
+
 ## [0.13.0-rc.4] - 2026-11-02
 
 ### Added

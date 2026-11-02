@@ -83,7 +83,7 @@ export function llmsTxt(site = SITE_URL): string {
     "",
     "- Compose or export **setup scripts** from templates (`/builder`, MCP `compose_stack`, `/api/plan`) when the user needs ordered npm/pip commands — not when they need a hosted runtime.",
     "- **Search documentation** via MCP `search_docs` or the raw Markdown URLs below before guessing DevStack behavior.",
-    "- Use **MCP** (`/mcp`, discovery `/.well-known/mcp`) for tool-based integration; mint scoped Bearer keys at `/settings/mcp`. HTTP surface: `/openapi.json`.",
+    "- Use **MCP** (`/mcp`, discovery `/.well-known/mcp`) for tool-based integration; mint scoped Bearer keys at `/settings/mcp`. HTTP surface: `/openapi.json`. For OpenAI SDK / Chat Completions clients use `POST /api/v1/chat/completions` (scope `chat:write`) and `GET /api/v1/models`.",
     "- Use **User Chat** (`/chat`) for free-tier Q&A; **Dev Chat** (`/chat/dev`) or **Factory** for sandbox agents — never expect DevStack to execute shell commands server-side.",
     "",
     `Agent instructions: ${site}/agent-instructions.txt`,
