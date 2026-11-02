@@ -1,5 +1,7 @@
 # Chat & Factory API
 
+OpenAI-compatible HTTP API (Bearer MCP keys): see [api-openai](./api-openai.md) (`POST /api/v1/chat/completions`, `GET /api/v1/models`).
+
 ทุก route ตอบ `Cache-Control: no-store` ข้อผิดพลาดเป็น JSON `{ error, code, ... }` (ข้อความไทย/อังกฤษ)
 
 | Route | Method | ใช้ทำอะไร |
