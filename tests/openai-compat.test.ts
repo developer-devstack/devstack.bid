@@ -85,7 +85,7 @@ describe("POST /api/v1/chat/completions + GET /api/v1/models", () => {
     const spec = openApiSpec();
     expect(spec.paths["/api/v1/chat/completions"]).toBeDefined();
     expect(spec.paths["/api/v1/models"]).toBeDefined();
-    expect(spec.info.version).toBe("0.13.0-rc.5");
+    expect(spec.info.version).toBe("0.13.0-rc.6");
   });
 
   it("rejects missing key, CLI key, and read-only key on completions", async () => {

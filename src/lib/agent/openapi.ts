@@ -8,7 +8,7 @@ export function openApiSpec(site = SITE_URL) {
     openapi: "3.1.0",
     info: {
       title: "DevStack (NVX Stack Builder) API",
-      version: "0.13.0-rc.5",
+      version: "0.13.0-rc.6",
       description:
         "Public HTTP APIs for DevStack at devstack.bid. Setup commands are returned as text only; the server does not execute user commands. OpenAI-compatible chat lives at /api/v1/chat/completions. MCP Streamable HTTP lives at /mcp (JSON-RPC). Create Bearer keys at /settings/mcp.",
     },

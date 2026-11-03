@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0-rc.6] - 2026-11-03
+
 ### Changed
 - **Unified Chat page:** `/chat` is the single chat workspace with Ask / Build / Dev mode tabs (UI chrome matches `/chat/build`). Model picker stays in Ask. Legacy `/chat/build` and `/chat/dev` redirect to `/chat?mode=build` and `/chat?mode=dev`. Top-bar **Chats/History** button (Ask/Dev) opens the real history drawer/sheet; visible at 390px without scrolling.
 - **/templates Deploy-first:** every template card’s primary action is **Deploy** (`/deploy?template=<id>`). It creates a DevStack-hosted project from the template’s real source (R2/D1 — **no GitHub repo creation**), starts Deploy when the template is a Workers web app, and navigates to `/deployments/:id` (or `/projects/:id` for non-web templates). Replaces the non-working “Open in builder” create path as the default CTA; “View steps” stays secondary.
 - Template detail and `/new` template mode copy match the hosted path (no “creates a GitHub repo” wording). Direct Deploy panel no longer says a GitHub repo is required for container builds.
+- **Studio chat UX:** AgentChat follows AI SDK chatbot patterns (message bubbles, suggestions, multimodal attach, stop/regenerate, model chip, streaming indicator) on the real agent runtime.
 
 ### Added
 - `/deploy?template=<id>` create-and-deploy flow (`TemplateDeploy`) and `templateDeployName` helper.
+
+### Fixed
+- Studio mobile tab bar and attach control use geometry/SVG icons (no emoji) so the studio no-emoji UI test stays green.
 
 ## [0.13.0-rc.5] - 2026-11-02
 
@@ -710,7 +716,9 @@ Test deployment: https://nvx-stack-builder.agen-sdk-work.workers.dev (workers.de
 - Vitest unit tests (21), `npm run export` CLI for contributors, MIT license, README (TH+EN),
   CONTRIBUTING, CODE_OF_CONDUCT, `.env.example`.
 
-[Unreleased]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.4...HEAD
+[Unreleased]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.6...HEAD
+[0.13.0-rc.6]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.5...v0.13.0-rc.6
+[0.13.0-rc.5]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.4...v0.13.0-rc.5
 [0.13.0-rc.4]: https://github.com/developer-devstack/devstack.bid/compare/v0.13.0-rc.3...v0.13.0-rc.4
 [0.6.0]: https://github.com/OWNER/nvx-stack-builder/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/OWNER/nvx-stack-builder/compare/v0.5.0...v0.5.1
