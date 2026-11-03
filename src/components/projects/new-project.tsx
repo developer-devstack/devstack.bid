@@ -262,16 +262,20 @@ function FromTemplate({ th, templates }: { th: boolean; templates: TemplateOptio
       .catch((x: unknown) => ({ ok: false, status: 0, body: { error: String(x) } as Record<string, unknown> & { error?: string } }));
     setBusy(false);
     if (!r.ok) { setErr(r.body.error ?? "Failed"); return; }
-    location.href = `/projects/${encodeURIComponent((r.body.project as { id: string }).id)}`;
+    const projectId = (r.body.project as { id: string }).id;
+    const live = templates.find((x) => x.id === id)?.target !== "not-deployable";
+    location.href = live
+      ? `/projects/${encodeURIComponent(projectId)}#deploy`
+      : `/projects/${encodeURIComponent(projectId)}`;
   }
   return (
     <Card className="mt-6 p-5">
       <h2 className="text-base font-semibold text-fg">{th ? "เริ่มจากเทมเพลต" : "Start from a template"}</h2>
-      <p className="mt-1 text-sm text-subtle">{th ? "สร้าง repo ใหม่ใน GitHub ของคุณจากเทมเพลต (ต้องเชื่อม GitHub)" : "Creates a new repository in your GitHub account from the template (GitHub connection required)."}</p>
+      <p className="mt-1 text-sm text-subtle">{th ? "สร้างโปรเจกต์บนโฮสต์ติ้งของ DevStack จากเทมเพลต (ไม่สร้าง repo บน GitHub)" : "Creates a DevStack-hosted project from the template (no GitHub repository is created)."}</p>
       <form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><Label htmlFor="tp-id">{th ? "เทมเพลต" : "Template"}</Label>
           <Select id="tp-id" value={id} onChange={(e) => setId(e.target.value)}>{templates.map((t) => <option key={t.id} value={t.id}>{th ? t.name.th : t.name.en} · {t.target}</option>)}</Select></div>
-        <div><Label htmlFor="tp-name">{th ? "ชื่อ repo ใหม่" : "New repository name"}</Label><Input id="tp-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} pattern="[A-Za-z0-9][A-Za-z0-9._-]*" placeholder="my-app" className="font-mono" /></div>
+        <div><Label htmlFor="tp-name">{th ? "ชื่อโปรเจกต์" : "Project name"}</Label><Input id="tp-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} pattern="[A-Za-z0-9][A-Za-z0-9._-]*" placeholder="my-app" className="font-mono" /></div>
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-fg"><input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} className="accent-current" />{th ? "ส่วนตัว" : "Private"}</label>
         <div className="sm:col-span-2"><button type="submit" disabled={busy || !name || !id} className={buttonClasses("primary", "md")}>{busy ? (th ? "กำลังสร้าง..." : "Creating...") : (th ? "สร้างโปรเจกต์" : "Create project")}</button></div>
       </form>
