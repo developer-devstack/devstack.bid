@@ -19,8 +19,8 @@ export const NAV = [
   { href: "/templates", key: "nav.templates", Icon: LayoutGrid },
   { href: "/builder", key: "nav.builder", Icon: Blocks },
   { href: "/chat", key: "nav.chat", Icon: MessagesSquare },
-  { href: "/chat/build", key: "nav.aiBuild", Icon: Blocks, wide: true },
-  { href: "/chat/dev", key: "nav.devChat", Icon: SquareTerminal, wide: true },
+  { href: "/chat?mode=build", key: "nav.aiBuild", Icon: Blocks, wide: true },
+  { href: "/chat?mode=dev", key: "nav.devChat", Icon: SquareTerminal, wide: true },
   { href: "/factory", key: "nav.factory", Icon: FlaskConical, wide: true },
   { href: "/docs/platform", key: "nav.functions", Icon: Layers },
   { href: "/docs/agents/cursor-caretakers", key: "nav.agents", Icon: Bot, wide: true },
@@ -60,9 +60,10 @@ export const PRIMARY: { href: string; key: "nav.templates" | "nav.builderShort" 
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === "/" || href === "/chat") return pathname === href;
-  if (href === "/docs") return pathname === "/docs" || (pathname.startsWith("/docs/") && !pathname.startsWith("/docs/platform") && !pathname.startsWith("/docs/agents/cursor-caretakers"));
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const pathOnly = href.split("?")[0] || href;
+  if (pathOnly === "/" || pathOnly === "/chat") return pathname === pathOnly;
+  if (pathOnly === "/docs") return pathname === "/docs" || (pathname.startsWith("/docs/") && !pathname.startsWith("/docs/platform") && !pathname.startsWith("/docs/agents/cursor-caretakers"));
+  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
 }
 
 export function Header() {
@@ -220,7 +221,7 @@ const FOOTER: { heading: "footer.product" | "footer.resources" | "footer.develop
       { href: "/openapi.json", key: "nav.openapi" },
       { href: "/llms.txt", key: "docs.forAgents" },
       { href: "/settings/mcp", key: "nav.mcpSettings" },
-      { href: "/chat/dev", key: "nav.devChat" },
+      { href: "/chat?mode=dev", key: "nav.devChat" },
       { href: "/factory", key: "nav.factory" },
       { href: "/docs/agents/cursor-caretakers", key: "nav.agents" },
     ],

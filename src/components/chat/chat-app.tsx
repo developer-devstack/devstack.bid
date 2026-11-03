@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowUp, BookOpenText, Box, Code2, FlaskConical, History, ImageIcon, LogIn, MessageSquarePlus, Paperclip, Square, TerminalSquare, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MutableRefObject } from "react";
 import { Badge, Button, buttonClasses, cn, Dialog, DialogContent, Kbd, Spinner, Tooltip } from "@/components/ui";
 import type { Activity, UiEvent } from "@/lib/chat/events";
 import type { DictKey } from "@/lib/i18n";
@@ -165,7 +165,24 @@ export interface ByokMode {
   onBack?: () => void;
 }
 
-export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode; className?: string; channel?: "user" | "dev" } = {}) {
+export type ChatHistoryApi = { open: () => void };
+
+export function ChatApp({
+  byok,
+  className,
+  channel = "user",
+  initialMode,
+  embedded = false,
+  historyApiRef,
+}: {
+  byok?: ByokMode;
+  className?: string;
+  channel?: "user" | "dev";
+  initialMode?: ChatMode;
+  embedded?: boolean;
+  /** Parent chrome (unified /chat) can open the real history drawer via this ref. */
+  historyApiRef?: MutableRefObject<ChatHistoryApi | null>;
+} = {}) {
   const dev = channel === "dev" || Boolean(byok);
   const STARTERS = dev ? DEV_STARTERS : USER_STARTERS;
   const { t, lang } = useLang();
@@ -181,7 +198,11 @@ export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode
   const [dropAuthNotice, setDropAuthNotice] = useState(false);
   const authFlag = useSyncExternalStore(() => () => undefined, authQuery, () => null);
   const [remaining, setRemaining] = useState<Quota | undefined>();
-  const [mode, setModeState] = useState<ChatMode>(dev ? "agent" : "general");
+  const [mode, setModeState] = useState<ChatMode>(() => {
+    if (dev) return "agent";
+    if (initialMode && initialMode !== "agent" && initialMode !== "gateway") return initialMode;
+    return "general";
+  });
   const [gatewayModel, setGatewayModel] = useState<string | null>(null);
   const setMode = useCallback((m: ChatMode) => {
     setModeState(m);
@@ -205,6 +226,13 @@ export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode
     [setMode]
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+  useEffect(() => {
+    if (!historyApiRef) return;
+    historyApiRef.current = { open: () => setHistoryOpen(true) };
+    return () => {
+      historyApiRef.current = null;
+    };
+  }, [historyApiRef]);
   const [mobileTab, setMobileTab] = useState<"chat" | "sandbox">("chat");
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -257,15 +285,20 @@ export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode
         setConversations(data.conversations ?? []);
         setRemaining(data.quota);
         try {
-          const saved = localStorage.getItem(MODE_STORE);
-          if (!dev && saved?.startsWith("gateway:")) {
-            const id = saved.slice("gateway:".length);
-            if (data.models?.some((m) => m.mode === "gateway" && m.model === id && m.available)) {
-              setModeState("gateway");
-              setGatewayModel(id);
+          // Prefer URL / parent initialMode over a stored preference.
+          if (initialMode && initialMode !== "agent" && initialMode !== "gateway") {
+            /* kept from props */
+          } else {
+            const saved = localStorage.getItem(MODE_STORE);
+            if (!dev && saved?.startsWith("gateway:")) {
+              const id = saved.slice("gateway:".length);
+              if (data.models?.some((m) => m.mode === "gateway" && m.model === id && m.available)) {
+                setModeState("gateway");
+                setGatewayModel(id);
+              }
+            } else if (!dev && saved && saved !== "image" && data.models?.some((m) => m.mode === saved && m.available)) {
+              setModeState(saved as ChatMode);
             }
-          } else if (!dev && saved && saved !== "image" && data.models?.some((m) => m.mode === saved && m.available)) {
-            setModeState(saved as ChatMode);
           }
         } catch {}
       })
@@ -273,7 +306,16 @@ export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode
     return () => {
       live = false;
     };
-  }, [byok, channel, dev]);
+  }, [byok, channel, dev, initialMode]);
+  // URL / parent shell can preselect a user model (e.g. /chat?mode=code).
+  useEffect(() => {
+    if (dev || !initialMode || initialMode === "agent" || initialMode === "gateway" || initialMode === "image") return;
+    setModeState(initialMode);
+    try {
+      localStorage.setItem(MODE_STORE, initialMode);
+    } catch {}
+  }, [dev, initialMode]);
+
 
   useEffect(() => {
     if (atBottomRef.current) scrollToLatest();
@@ -541,17 +583,21 @@ export function ChatApp({ byok, className, channel = "user" }: { byok?: ByokMode
         "mx-auto grid max-w-[1500px] grid-cols-1 gap-4",
         byok
           ? "lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]"
-          : dev
-            ? "h-[calc(100dvh-3.5rem-1px)] px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 lg:grid-cols-[240px_minmax(0,1fr)_340px] xl:grid-cols-[260px_minmax(0,1fr)_380px]"
-            : "h-[calc(100dvh-3.5rem-1px)] max-w-[1240px] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]",
+          : embedded
+            ? dev
+              ? "h-full px-0 pt-0 pb-0 lg:grid-cols-[240px_minmax(0,1fr)_340px] xl:grid-cols-[260px_minmax(0,1fr)_380px]"
+              : "h-full max-w-none px-0 pt-0 pb-0 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]"
+            : dev
+              ? "h-[calc(100dvh-3.5rem-1px)] px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 lg:grid-cols-[240px_minmax(0,1fr)_340px] xl:grid-cols-[260px_minmax(0,1fr)_380px]"
+              : "h-[calc(100dvh-3.5rem-1px)] max-w-[1240px] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:pt-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]",
         className
       )}
     >
-      {!byok && <aside className="hidden min-h-0 flex-col rounded-2xl border border-border bg-surface p-3 lg:flex">{history}</aside>}
+      {!byok && <aside className={cn("hidden min-h-0 flex-col border border-border bg-surface p-3 lg:flex", embedded ? "rounded-lg" : "rounded-2xl")}>{history}</aside>}
 
-      <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface" aria-label={t("chat.title")}>
+      <section className={cn("flex min-h-0 flex-col overflow-hidden border border-border bg-surface", embedded ? "rounded-lg" : "rounded-2xl")} aria-label={t("chat.title")}>
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:hidden">
-          {!byok && (
+          {!byok && !embedded && (
             <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)} aria-label={t("chat.history")}>
               <History className="h-4 w-4" aria-hidden /> <span className="sr-only sm:not-sr-only">{t("chat.history")}</span>
             </Button>

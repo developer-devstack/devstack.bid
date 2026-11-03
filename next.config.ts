@@ -41,6 +41,7 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     // Canonical host: www.devstack.bid -> devstack.bid (both are Workers Custom Domains of this Worker).
+    // Legacy chat URLs fold into the unified /chat page with the matching mode preselected.
     return [
       {
         source: "/:path*",
@@ -48,6 +49,8 @@ const nextConfig: NextConfig = {
         destination: "https://devstack.bid/:path*",
         permanent: true,
       },
+      { source: "/chat/build", destination: "/chat?mode=build", permanent: true },
+      { source: "/chat/dev", destination: "/chat?mode=dev", permanent: true },
     ];
   },
   async headers() {

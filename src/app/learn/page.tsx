@@ -41,7 +41,7 @@ const GROUPS: { title: DictKey; items: { href: string; document?: boolean; title
     title: "learn.group.talk",
     items: [
       { href: "/chat", title: "learn.card.chat.title", body: "learn.card.chat.body", Icon: MessagesSquare },
-      { href: "/chat/dev", title: "learn.card.dev.title", body: "learn.card.dev.body", Icon: SquareTerminal },
+      { href: "/chat?mode=dev", title: "learn.card.dev.title", body: "learn.card.dev.body", Icon: SquareTerminal },
       { href: "/factory", title: "learn.card.factory.title", body: "learn.card.factory.body", Icon: FlaskConical },
       { href: "/studio/", document: true, title: "learn.card.studio.title", body: "learn.card.studio.body", Icon: AppWindow },
     ],

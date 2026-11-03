@@ -7,7 +7,7 @@ export function homeMarkdown(site = SITE_URL): string {
 
 ## When to use DevStack
 
-Use DevStack when an agent or developer needs **runnable setup plans** for Node.js or Python projects: pick a template, compose steps in the Builder, export \`setup.sh\` / \`setup.ps1\`, or call the MCP tools (\`list_templates\`, \`compose_stack\`, \`export_scripts\`). Use **User Chat** (\`/chat\`) for free-tier Workers AI Q&A; **Dev Chat** (\`/chat/dev\`) for sandbox agents; **MCP** (\`${site}/mcp\`) for scripted integration without rebuilding HTTP clients.
+Use DevStack when an agent or developer needs **runnable setup plans** for Node.js or Python projects: pick a template, compose steps in the Builder, export \`setup.sh\` / \`setup.ps1\`, or call the MCP tools (\`list_templates\`, \`compose_stack\`, \`export_scripts\`). Use **Chat** (\`/chat\`) for free-tier Workers AI Q&A; **Dev** (\`/chat?mode=dev\`) for sandbox agents; **MCP** (\`${site}/mcp\`) for scripted integration without rebuilding HTTP clients.
 
 ## Start here
 
@@ -24,7 +24,7 @@ Use DevStack when an agent or developer needs **runnable setup plans** for Node.
 | Templates | ${site}/templates |
 | Builder | ${site}/builder |
 | User Chat | ${site}/chat |
-| Dev Chat | ${site}/chat/dev |
+| Dev Chat | ${site}/chat?mode=dev |
 | MCP settings (API keys) | ${site}/settings/mcp |
 `;
 }

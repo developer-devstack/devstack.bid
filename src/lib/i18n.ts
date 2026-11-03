@@ -172,6 +172,11 @@ const dict = {
 
   "nav.design": { en: "Design system", th: "ระบบดีไซน์" },
   "nav.chat": { en: "Chat", th: "แชต" },
+  "chat.unifiedTitle": { en: "Chat", th: "แชต" },
+  "chat.modeTabs": { en: "Chat mode", th: "โหมดแชต" },
+  "chat.modeTab.ask": { en: "Chat", th: "แชต" },
+  "chat.modeTab.build": { en: "Build", th: "สร้างเว็บ" },
+  "chat.modeTab.dev": { en: "Dev", th: "Dev" },
   "chat.title": { en: "DevStack Chat", th: "DevStack Chat" },
   "chat.subtitle": {
     en: "Free AI chat: ask anything in Thai or English, get help with code, or create images. 20 messages and 5 images per day, reset at midnight Bangkok time.",
