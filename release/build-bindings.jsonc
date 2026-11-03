@@ -17,7 +17,8 @@
     "consumers": [{ "queue": "devstack-build-jobs", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 10, "max_concurrency": 2 }]
   },
   // One container instance per build job; at most 2 at once (also enforced in D1 by claimWithCap).
-  "containers": [{ "class_name": "BuildContainer", "image": "./container/Dockerfile", "max_instances": 2, "instance_type": "standard-1" }],
+  // standard-3 = 2 vCPU / 8 GiB: OpenNext+Next 16 OOMs or thrash-hangs on standard-1 (0.5 vCPU / 4 GiB).
+  "containers": [{ "class_name": "BuildContainer", "image": "./container/Dockerfile", "max_instances": 2, "instance_type": "standard-3" }],
   "durable_objects": { "bindings": [{ "name": "BUILD_CONTAINER", "class_name": "BuildContainer" }] },
   "migrations": [{ "tag": "v1-build-container", "new_sqlite_classes": ["BuildContainer"] }]
 }

@@ -239,11 +239,15 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
   const deadline = now() + BUILD_TIMEOUT_MS;
   let canceled = false;
   let timedOut = false;
+  // Abort the /build fetch when we time out or cancel so a hung NDJSON stream cannot pin the job forever
+  // (cancel alone only SIGTERMs the direct child; grandchildren may keep the body open).
+  const ac = new AbortController();
   const watchdog = setInterval(async () => {
     const hb = await heartbeat(db, jobId, now()).catch(() => null);
     if ((hb?.cancel || now() > deadline) && !canceled && !timedOut) {
       if (now() > deadline) timedOut = true; else canceled = true;
       await box.fetch("http://container/cancel", { method: "POST" }).catch(() => null);
+      try { ac.abort(); } catch { /* ignore */ }
     }
   }, 10_000);
   try {
@@ -259,6 +263,7 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
     const res = await box.fetch("http://container/build", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: ac.signal,
       body: JSON.stringify(archiveMode
         ? { source: "archive", commit: job.commit_sha, root: cfg.root ?? "", install: cfg.install, build: cfg.build, output: cfg.output, env, token: null }
         // Public repos clone anonymously: the owner token is sent only when the repo is private (or unknown).
@@ -272,25 +277,40 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let pending = "";
     let result: { ok: boolean; code?: string; message?: string } | null = null;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      pending += value;
-      let nl: number;
-      while ((nl = pending.indexOf("\n")) >= 0) {
-        const raw = pending.slice(0, nl);
-        pending = pending.slice(nl + 1);
-        let msg: { t: string; phase?: BuildState; chunk?: string; ok?: boolean; code?: string; message?: string };
-        try { msg = JSON.parse(raw); } catch { continue; }
-        if (msg.t === "phase" && msg.phase && ["installing", "building", "uploading"].includes(msg.phase)) {
-          await log.flush();
-          if (!(await move(msg.phase))) { canceled = true; break; }
-        } else if (msg.t === "log" && typeof msg.chunk === "string") await log.write(msg.chunk);
-        else if (msg.t === "result") result = { ok: !!msg.ok, code: msg.code, message: msg.message };
+    try {
+      for (;;) {
+        if (timedOut || canceled) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        pending += value;
+        let nl: number;
+        while ((nl = pending.indexOf("\n")) >= 0) {
+          const raw = pending.slice(0, nl);
+          pending = pending.slice(nl + 1);
+          let msg: { t: string; phase?: BuildState; chunk?: string; ok?: boolean; code?: string; message?: string };
+          try { msg = JSON.parse(raw); } catch { continue; }
+          if (msg.t === "phase" && msg.phase && ["installing", "building", "uploading"].includes(msg.phase)) {
+            await log.flush();
+            if (!(await move(msg.phase))) { canceled = true; break; }
+          } else if (msg.t === "log" && typeof msg.chunk === "string") await log.write(msg.chunk);
+          else if (msg.t === "result") result = { ok: !!msg.ok, code: msg.code, message: msg.message };
+        }
       }
+    } catch (e) {
+      // AbortError from ac.abort() after timeout/cancel — fall through to timedOut/canceled handling.
+      if (!timedOut && !canceled) throw e;
+    } finally {
+      try { reader.releaseLock(); } catch { /* ignore */ }
     }
     await log.flush();
-    if (timedOut) return fail("timed_out", `Build exceeded ${BUILD_TIMEOUT_MS / 60_000} minutes and was stopped.`);
+    if (timedOut || result?.code === "timed_out") {
+      const mins = BUILD_TIMEOUT_MS / 60_000;
+      return fail(
+        "timed_out",
+        result?.message
+          ?? `หมดเวลาสร้าง (${mins} นาที) — หยุดแล้ว ไม่นับโควต้าวัน ลอง Deploy ใหม่ หรือลดขนาดโปรเจกต์ / Build exceeded ${mins} minutes and was stopped (does not count toward daily quota).`,
+      );
+    }
     if (canceled || result?.code === "canceled") return fail("canceled", "Build canceled.");
     if (!result) return fail("executor_lost", "Build container stopped without a result.");
     if (!result.ok) return fail(result.code ?? "build_failed", result.message ?? "Build failed.");

@@ -9,10 +9,10 @@ Status 2026-10-22: code complete and tested locally; **not provisioned** (see Bl
 2. Queue consumer (`custom-worker.ts` `queue()`) → `runContainerJob`: `claimWithCap` (max 2 running, conditional UPDATE) → container `build-<jobId>` `POST /build` → NDJSON phases (`installing` → `building` → `uploading`) and log chunks → `createLogStream` (line-buffered, redacted) → `build_events` + `logs/<jobId>.txt` in R2.
 3. `GET /artifact` (tar of the output dir) → `artifacts/<jobId>.tar` → files → `SITES` bucket `sites/<deploymentId>/…` → hostname aliases `hosts/<label>.json`.
 4. Production builds also move `<slug>.devstack.bid` (promote). Previews get `<slug>-<shortid>.devstack.bid`.
-5. Cancel: `requestCancel` → heartbeat watchdog (10 s) → container `/cancel` (SIGTERM, then SIGKILL). 15-minute hard limit → `timed_out`. Cron sweeper unchanged.
+5. Cancel: `requestCancel` → heartbeat watchdog (10 s) → container `/cancel` (process-group SIGTERM, then SIGKILL) + AbortController on the `/build` fetch so a hung stream cannot pin the job. 15-minute outer hard limit → `timed_out` (Thai user message; quota excluded). Inside the container: install ≤8 min, build ≤12 min, and a 4-minute no-log stall kill for OpenNext/esbuild/workerd hangs. Cron sweeper unchanged (building phase heartbeat ≤14 min).
 
 ## Caps
-`MAX_CONCURRENT_BUILDS = 2`, `BUILD_TIMEOUT_MS = 15 min`, `DAILY_BUILDS_PER_USER = 10` (`src/lib/build/caps.ts`), container `max_instances: 2`, queue `max_concurrency: 2`.
+`MAX_CONCURRENT_BUILDS = 2`, `BUILD_TIMEOUT_MS = 15 min`, `DAILY_BUILDS_PER_USER = 10` (`src/lib/build/caps.ts`), container `max_instances: 2`, `instance_type: standard-3` (2 vCPU / 8 GiB — OpenNext needs more than `standard-1`), queue `max_concurrency: 2`.
 
 ## Security
 - Container image (`container/Dockerfile`): pinned digests, non-root `node` user, tini, no secrets/ARGs.

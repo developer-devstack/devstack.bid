@@ -19,7 +19,8 @@ export function templateBuild(templateId: string): TemplateBuild | null {
   const files = TEMPLATE_PROJECTS[templateId];
   if (!files) return null;
   const next = files.some((f) => f.path === "next.config.mjs");
-  return { framework: next ? "nextjs" : "vite", install: "npm ci", build: "npm run build", output: next ? ".open-next" : "dist" };
+  // Next: outer command must be opennextjs-cloudflare (NOT `npm run build`). OpenNext itself runs `npm run build` → `next build`; if both are opennext the build recurses until OOM/hang.
+  return { framework: next ? "nextjs" : "vite", install: "npm ci", build: next ? "npx opennextjs-cloudflare build" : "npm run build", output: next ? ".open-next" : "dist" };
 }
 
 /** Plain text safe inside HTML text/attributes, JSX text and JS string literals. */
@@ -65,7 +66,7 @@ export function templateSeedFiles(templateId: string, repoName: string, descript
       return { path: f.path, content: fill(f.content) };
     });
     const b = templateBuild(templateId)!;
-    out.push({ path: "README.md", content: `# ${title}\n\n${desc}\n\nCreated on devstack.bid from the **${template.name.en}** template.\n\n\`\`\`bash\nnpm ci\nnpm run dev     # local preview\nnpm run build   # ${b.framework === "nextjs" ? "server build (OpenNext) in" : "static output in"} ${b.output}/\n\`\`\`\n` });
+    out.push({ path: "README.md", content: `# ${title}\n\n${desc}\n\nCreated on devstack.bid from the **${template.name.en}** template.\n\n\`\`\`bash\nnpm ci\nnpm run dev     # local preview\n${b.framework === "nextjs" ? "npx opennextjs-cloudflare build   # server Worker in" : "npm run build   # static output in"} ${b.output}/\n\`\`\`\n` });
     return out;
   }
   const config = configForTemplate(templateId, { projectName: repoName });

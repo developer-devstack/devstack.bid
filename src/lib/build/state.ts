@@ -29,7 +29,7 @@ export const nextStates = (from: BuildState): readonly BuildState[] => NEXT[from
 
 /** Per-phase wall-clock limits (ms). A heartbeat older than this marks the job timed_out. */
 export const PHASE_TIMEOUT_MS: Record<BuildState, number> = {
-  queued: 30 * 60_000, claimed: 2 * 60_000, installing: 10 * 60_000, building: 20 * 60_000, uploading: 5 * 60_000,
+  queued: 30 * 60_000, claimed: 2 * 60_000, installing: 10 * 60_000, building: 14 * 60_000, uploading: 5 * 60_000,
   succeeded: 0, failed: 0, canceled: 0, timed_out: 0,
 };
 

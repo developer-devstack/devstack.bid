@@ -44,14 +44,94 @@ export function pinPublicRegistry(dir, emit) {
   }
 }
 
+/** Hard limits inside the container (executor also has BUILD_TIMEOUT_MS). Leave headroom under the 15 min outer cap. */
+export const INSTALL_CMD_TIMEOUT_MS = Number(process.env.INSTALL_CMD_TIMEOUT_MS) || 8 * 60_000;
+export const BUILD_CMD_TIMEOUT_MS = Number(process.env.BUILD_CMD_TIMEOUT_MS) || 12 * 60_000;
+/** No stdout/stderr for this long → treat as hung (esbuild/workerd/OpenNext silence). */
+export const BUILD_STALL_MS = Number(process.env.BUILD_STALL_MS) || 4 * 60_000;
+
+const TH_BUILD_TIMEOUT = (mins) =>
+  `หมดเวลาสร้าง (${mins} นาที) — หยุดแล้ว ไม่นับโควต้าวัน ลอง Deploy ใหม่ หรือลดขนาดโปรเจกต์\n`;
+const TH_BUILD_STALL = (mins) =>
+  `การสร้างเงียบไปเกิน ${mins} นาที (น่าจะค้างที่ OpenNext/esbuild/workerd) — หยุดแล้ว ไม่นับโควต้าวัน ลอง Deploy ใหม่\n`;
+
+/** Kill the spawn and its process group (npm → next/esbuild/workerd children). */
+export function killProcessTree(child, sig = "SIGTERM") {
+  if (!child?.pid) return;
+  try { process.kill(-child.pid, sig); } catch {
+    try { child.kill(sig); } catch {}
+  }
+}
+
+/**
+ * Spawn without a shell. Uses a new process group so /cancel and timeouts can SIGKILL
+ * grandchildren (next, esbuild, workerd) that would otherwise keep the stream open forever.
+ * Optional opts.timeoutMs / opts.stallMs (stall resets on each log chunk).
+ */
 function run(cmd, args, opts, phase, emit) {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: opts.cwd, env: opts.env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd,
+      env: opts.env,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    });
     state.child = child;
-    const pipe = (s) => s.on("data", (b) => emit({ t: "log", phase, chunk: b.toString("utf8") }));
+    let timedOut = false;
+    let stalled = false;
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (hardTimer) clearTimeout(hardTimer);
+      if (stallTimer) clearTimeout(stallTimer);
+      if (state.child === child) state.child = null;
+      resolve(result);
+    };
+    const armStall = () => {
+      if (!opts.stallMs || settled) return;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        if (settled) return;
+        stalled = true;
+        const mins = Math.max(1, Math.round(opts.stallMs / 60_000));
+        emit({ t: "log", phase, chunk: TH_BUILD_STALL(mins) });
+        killProcessTree(child, "SIGTERM");
+        setTimeout(() => killProcessTree(child, "SIGKILL"), 5_000).unref();
+      }, opts.stallMs);
+      if (typeof stallTimer.unref === "function") stallTimer.unref();
+    };
+    let hardTimer = null;
+    let stallTimer = null;
+    if (opts.timeoutMs) {
+      hardTimer = setTimeout(() => {
+        if (settled) return;
+        timedOut = true;
+        const mins = Math.max(1, Math.round(opts.timeoutMs / 60_000));
+        emit({ t: "log", phase, chunk: TH_BUILD_TIMEOUT(mins) });
+        killProcessTree(child, "SIGTERM");
+        setTimeout(() => killProcessTree(child, "SIGKILL"), 5_000).unref();
+      }, opts.timeoutMs);
+      if (typeof hardTimer.unref === "function") hardTimer.unref();
+    }
+    const pipe = (s) => s.on("data", (b) => {
+      armStall();
+      emit({ t: "log", phase, chunk: b.toString("utf8") });
+    });
     pipe(child.stdout); pipe(child.stderr);
-    child.on("close", (code, signal) => { state.child = null; resolve({ code, signal }); });
-    child.on("error", (e) => { state.child = null; emit({ t: "log", phase, chunk: `spawn error: ${e.code ?? e.message}\n` }); resolve({ code: 127 }); });
+    armStall();
+    child.on("close", (code, signal) => {
+      finish({
+        code: timedOut || stalled ? 124 : code,
+        signal,
+        timedOut: timedOut || stalled,
+        stalled,
+      });
+    });
+    child.on("error", (e) => {
+      emit({ t: "log", phase, chunk: `spawn error: ${e.code ?? e.message}\n` });
+      finish({ code: 127, timedOut: false, stalled: false });
+    });
   });
 }
 
@@ -102,6 +182,30 @@ export function prepareOpenNext(dir, buildCmd) {
     added.push("wrangler.jsonc");
   }
   return added;
+}
+
+/**
+ * OpenNext's buildNextjsApp runs `npm run build` (or config.buildCommand). If package.json
+ * scripts.build is itself `opennextjs-cloudflare build`, that recurses until OOM / hang.
+ * Rewrite to `next build` in the build workspace only (matches OpenNext migrate).
+ */
+export function fixRecursiveOpenNextBuildScript(dir, emit) {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync(pkgPath)) return null;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); } catch { return null; }
+  const from = pkg.scripts?.build;
+  if (typeof from !== "string" || !/(^|\s)opennextjs-cloudflare(\s|$)/.test(from)) return null;
+  pkg.scripts = { ...pkg.scripts, build: "next build" };
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  if (emit) {
+    emit({
+      t: "log",
+      phase: "installing",
+      chunk: `scripts.build เป็นคำสั่ง OpenNext ซ้อนกันจะวนไม่จบ — ปรับใน workspace นี้เป็น \`next build\` (OpenNext จะเรียกให้อัตโนมัติ)\n`,
+    });
+  }
+  return { from, to: "next build" };
 }
 
 /** Install command for the OpenNext adapter when the repo doesn't depend on it (null when already installed). */
@@ -220,6 +324,64 @@ export function ensureNextForOpenNext(dir, pm) {
   return { from, to, bumped, installCmd };
 }
 
+
+/** Floor for @vercel/otel when a project pins the 1.x line that peers against OpenTelemetry 0.46.x / 1.x. */
+export const VERCEL_OTEL_MIN = "2.2.1";
+
+/**
+ * Build-workspace only: bump @vercel/otel 1.x (or anything below VERCEL_OTEL_MIN) to the 2.x line
+ * that peers with OpenTelemetry >=0.200 / resources 2.x. Next.js 15/16 + modern OTel docs conflict
+ * with @vercel/otel@^1.12.0 and npm ERESOLVE fails the install. Returns null when unchanged.
+ */
+export function sanitizeVercelOtel(dir, emit) {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync(pkgPath)) return null;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); } catch { return null; }
+  const notes = [];
+  for (const section of ["dependencies", "devDependencies", "optionalDependencies"]) {
+    const bag = pkg[section];
+    if (!bag || bag["@vercel/otel"] == null) continue;
+    const from = String(bag["@vercel/otel"]);
+    const v = parseSemver(from);
+    const min = parseSemver(VERCEL_OTEL_MIN);
+    if (v && min && cmpSemver(v, min) >= 0) continue;
+    bag["@vercel/otel"] = VERCEL_OTEL_MIN;
+    notes.push(`@vercel/otel ${from} → ${VERCEL_OTEL_MIN}`);
+  }
+  if (!notes.length) return null;
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  if (emit) {
+    emit({
+      t: "log",
+      phase: "installing",
+      chunk: `พบ @vercel/otel รุ่นเก่าที่ชนกับ OpenTelemetry ชุดใหม่ — ปรับใน workspace นี้เท่านั้น: ${notes.join(", ")}\n`,
+    });
+  }
+  return { notes };
+}
+
+/** True when npm install/ci log looks like a peer-dependency ERESOLVE failure (EN/TH). */
+export function isEresolveLog(log) {
+  if (typeof log !== "string" || !log) return false;
+  return /ERESOLVE|unable to resolve dependency tree|Conflicting peer dependency|Could not resolve dependency|ข้อขัดแย้ง.*dependenc|ไม่สามารถแก้ไข.*dependenc/i.test(log);
+}
+
+/**
+ * npm-only fallback when peer resolution fails: prefer `npm install --legacy-peer-deps`
+ * (also replaces `npm ci`, whose lockfile may not match after a workspace rewrite).
+ * Null when the command is not npm or already uses the flag.
+ */
+export function withLegacyPeerDeps(install) {
+  if (typeof install !== "string" || !install.trim()) return null;
+  if (!/\bnpm\s+(ci|install)\b/.test(install)) return null;
+  if (/\s--legacy-peer-deps\b/.test(install)) return null;
+  // Drop frozen lockfile install; peer rewrite needs a resolver pass.
+  if (/\bnpm\s+ci\b/.test(install)) return "npm install --legacy-peer-deps";
+  const next = `${install.trim()} --legacy-peer-deps`;
+  return SAFE_CMD.test(next) ? next : "npm install --legacy-peer-deps";
+}
+
 async function extractArchive(emit) {
   const tarPath = join(WORK, "source.tar");
   if (!existsSync(tarPath)) return { ok: false, code: "invalid_config", message: "source archive missing; POST /source first" };
@@ -241,7 +403,7 @@ async function build(spec, emit) {
   }
   mkdirSync(HOME_DIR, { recursive: true });
   // Force the public registry so a leftover private .npmrc / env cannot 403 installs (install_failed).
-  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null", NITRO_PRESET: "cloudflare_module" };
+  const baseEnv = { PATH: process.env.PATH, HOME: HOME_DIR, CI: "1", NEXT_TELEMETRY_DISABLED: "1", COREPACK_ENABLE_DOWNLOAD_PROMPT: "0", npm_config_update_notifier: "false", npm_config_registry: PUBLIC_NPM, npm_config_always_auth: "false", YARN_NPM_REGISTRY_SERVER: PUBLIC_NPM, npm_config_userconfig: "/dev/null", NITRO_PRESET: "cloudflare_module", NODE_OPTIONS: process.env.BUILD_NODE_OPTIONS || "--max-old-space-size=6144" };
   const userEnv = {};
   const REGISTRY_ENV = /^(npm_config_registry|npm_config_always_auth|npm_config_userconfig|YARN_NPM_REGISTRY_SERVER|PNPM_REGISTRY)$/i;
   for (const [k, v] of Object.entries(spec.env ?? {})) if (ENVKEY.test(k) && !BLOCKED_ENV.has(k) && !REGISTRY_ENV.test(k) && typeof v === "string" && v.length <= 32_768) userEnv[k] = v;
@@ -284,6 +446,10 @@ async function build(spec, emit) {
   const added = prepareOpenNext(dir, buildCmd);
   if (added.length) emit({ t: "log", phase: "installing", chunk: `Repo has no Cloudflare config; added ${added.join(", ")} for this build (commit them to customize).\n` });
   const wantsOpenNext = !!(buildCmd && /(^|\s)opennextjs-cloudflare(\s|$)/.test(buildCmd));
+  // Also fix when outer cmd is `npm run build` but scripts.build is the OpenNext CLI (template hang).
+  if (wantsOpenNext || (buildCmd && /\bnpm\s+run\s+build\b/.test(buildCmd))) {
+    fixRecursiveOpenNextBuildScript(dir, emit);
+  }
   // Rewrite next in package.json BEFORE install so npm ci / peer resolution does not ERESOLVE
   // when the repo already depends on @opennextjs/cloudflare with an out-of-range next.
   let nextBump = null;
@@ -294,42 +460,67 @@ async function build(spec, emit) {
       emit({ t: "log", phase: "installing", chunk: `next ${nextBump.from} is below @opennextjs/cloudflare's peer (needs >=15.5.28 on 15.x or >=16.4.1). Auto-bumping in the build workspace only: ${list}.\n` });
     }
   }
+  const otelFix = sanitizeVercelOtel(dir, emit);
   let install = spec.install || detected.install;
-  // package.json next changed → lockfile no longer matches npm ci; use npm install for this workspace.
-  if (nextBump && install && /\bnpm\s+ci\b/.test(install)) {
+  // package.json next / otel changed → lockfile no longer matches npm ci; use npm install for this workspace.
+  if ((nextBump || otelFix) && install && /\bnpm\s+ci\b/.test(install)) {
     install = "npm install";
-    emit({ t: "log", phase: "installing", chunk: `Using npm install (not npm ci) after OpenNext next bump so the lockfile can resolve.\n` });
+    emit({ t: "log", phase: "installing", chunk: `Using npm install (not npm ci) after package.json peer fix so the lockfile can resolve.\n` });
   }
   if (install) {
     emit({ t: "log", phase: "installing", chunk: `$ ${install}\n` });
     const a = argv(install);
-    // Dev dependencies are needed to build.
-    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
+    // Dev dependencies are needed to build. Collect log so we can detect ERESOLVE and retry.
+    let installLog = "";
+    const collect = (msg) => { if (msg?.chunk) installLog += msg.chunk; emit(msg); };
+    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", collect);
     if (state.canceled) return { ok: false, code: "canceled" };
-    if (r.code !== 0) return { ok: false, code: "install_failed", message: `install exited with ${r.code}` };
+    if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
+    if (r.code !== 0) {
+      const retry = isEresolveLog(installLog) ? withLegacyPeerDeps(install) : null;
+      if (retry) {
+        emit({ t: "log", phase: "installing", chunk: `พบข้อขัดแย้ง dependency (ERESOLVE) — ลองติดตั้งใหม่ด้วย --legacy-peer-deps\n$ ${retry}\n` });
+        const b = argv(retry);
+        const r2 = await run(b[0], b.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", emit);
+        if (state.canceled) return { ok: false, code: "canceled" };
+        if (r2.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
+        if (r2.code !== 0) return { ok: false, code: "install_failed", message: `install exited with ${r2.code} (after --legacy-peer-deps retry)` };
+      } else {
+        return { ok: false, code: "install_failed", message: `install exited with ${r.code}` };
+      }
+    }
   }
   // If install did not pull the bumped next (e.g. custom install cmd), run the explicit bump install.
   if (nextBump && !nextSatisfiesOpenNext((() => { try { return JSON.parse(readFileSync(join(dir, "node_modules", "next", "package.json"), "utf8")).version; } catch { return ""; } })())) {
     emit({ t: "log", phase: "installing", chunk: `$ ${nextBump.installCmd}\n` });
     const a = argv(nextBump.installCmd);
-    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
+    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", emit);
     if (state.canceled) return { ok: false, code: "canceled" };
+    if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
     if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump next to ${nextBump.to} for OpenNext (exit ${r.code}); upgrade next in package.json to >=15.5.28 (15.x) or >=16.4.1` };
   }
   const adapter = wantsOpenNext ? openNextInstallCmd(dir, detected.pm) : null;
   if (adapter) {
     emit({ t: "log", phase: "installing", chunk: `@opennextjs/cloudflare is not a dependency; installing it for this build.\n$ ${adapter}\n` });
     const a = argv(adapter);
-    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" } }, "installing", emit);
+    const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", emit);
     if (state.canceled) return { ok: false, code: "canceled" };
+    if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
     if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not add @opennextjs/cloudflare (exit ${r.code}); it needs next >=15.5.28 (15.x) or >=16.4.1, so upgrade next in package.json` };
   }
   emit({ t: "phase", phase: "building" });
   if (buildCmd) {
     emit({ t: "log", phase: "building", chunk: `$ ${buildCmd}\n` });
     const a = argv(buildCmd);
-    const r = await run(a[0], a.slice(1), { cwd: dir, env }, "building", emit);
+    // OpenNext/Next can hang on small containers (esbuild/workerd); hard + stall timeouts kill the tree.
+    const r = await run(a[0], a.slice(1), { cwd: dir, env, timeoutMs: BUILD_CMD_TIMEOUT_MS, stallMs: BUILD_STALL_MS }, "building", emit);
     if (state.canceled) return { ok: false, code: "canceled" };
+    if (r.timedOut) {
+      const why = r.stalled
+        ? `การสร้างเงียบไปเกิน ${Math.round(BUILD_STALL_MS / 60_000)} นาที — หยุดแล้ว ไม่นับโควต้าวัน`
+        : `หมดเวลาสร้าง (${Math.round(BUILD_CMD_TIMEOUT_MS / 60_000)} นาที) — หยุดแล้ว ไม่นับโควต้าวัน`;
+      return { ok: false, code: "timed_out", message: why };
+    }
     if (r.code !== 0) return { ok: false, code: "build_failed", message: `build exited with ${r.code}` };
   }
   const out = normalize(join(dir, spec.output || "."));
@@ -403,8 +594,8 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") { res.end("ok"); return; }
   if (req.method === "POST" && req.url === "/cancel") {
     state.canceled = true;
-    state.child?.kill("SIGTERM");
-    setTimeout(() => state.child?.kill("SIGKILL"), 5000).unref();
+    killProcessTree(state.child, "SIGTERM");
+    setTimeout(() => killProcessTree(state.child, "SIGKILL"), 5000).unref();
     res.end("ok");
     return;
   }
