@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowUp, BookOpenText, Box, Code2, FlaskConical, History, ImageIcon, LogIn, MessageSquarePlus, Paperclip, Square, TerminalSquare, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MutableRefObject } from "react";
 import { Badge, Button, buttonClasses, cn, Dialog, DialogContent, Kbd, Spinner, Tooltip } from "@/components/ui";
 import type { Activity, UiEvent } from "@/lib/chat/events";
 import type { DictKey } from "@/lib/i18n";
@@ -165,7 +165,24 @@ export interface ByokMode {
   onBack?: () => void;
 }
 
-export function ChatApp({ byok, className, channel = "user", initialMode, embedded = false }: { byok?: ByokMode; className?: string; channel?: "user" | "dev"; initialMode?: ChatMode; embedded?: boolean } = {}) {
+export type ChatHistoryApi = { open: () => void };
+
+export function ChatApp({
+  byok,
+  className,
+  channel = "user",
+  initialMode,
+  embedded = false,
+  historyApiRef,
+}: {
+  byok?: ByokMode;
+  className?: string;
+  channel?: "user" | "dev";
+  initialMode?: ChatMode;
+  embedded?: boolean;
+  /** Parent chrome (unified /chat) can open the real history drawer via this ref. */
+  historyApiRef?: MutableRefObject<ChatHistoryApi | null>;
+} = {}) {
   const dev = channel === "dev" || Boolean(byok);
   const STARTERS = dev ? DEV_STARTERS : USER_STARTERS;
   const { t, lang } = useLang();
@@ -209,6 +226,13 @@ export function ChatApp({ byok, className, channel = "user", initialMode, embedd
     [setMode]
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+  useEffect(() => {
+    if (!historyApiRef) return;
+    historyApiRef.current = { open: () => setHistoryOpen(true) };
+    return () => {
+      historyApiRef.current = null;
+    };
+  }, [historyApiRef]);
   const [mobileTab, setMobileTab] = useState<"chat" | "sandbox">("chat");
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -573,7 +597,7 @@ export function ChatApp({ byok, className, channel = "user", initialMode, embedd
 
       <section className={cn("flex min-h-0 flex-col overflow-hidden border border-border bg-surface", embedded ? "rounded-lg" : "rounded-2xl")} aria-label={t("chat.title")}>
         <div className="flex items-center gap-2 border-b border-border px-3 py-2 lg:hidden">
-          {!byok && (
+          {!byok && !embedded && (
             <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)} aria-label={t("chat.history")}>
               <History className="h-4 w-4" aria-hidden /> <span className="sr-only sm:not-sr-only">{t("chat.history")}</span>
             </Button>
