@@ -57,7 +57,7 @@ export function DirectDeployPanel({ projectId, profile }: { projectId: string; p
         <div className="mt-3 space-y-3">
           <RetryButton projectId={projectId} refName={null} target="devstack" onStarted={() => refresh()} label={th ? "Deploy บน DevStack" : "Deploy on DevStack"} />
           {needsBuild && (
-            <p className="text-xs text-subtle">{th ? "โปรเจกต์นี้ต้อง build — DevStack จะ build ให้ใน container แล้วขึ้นโฮสต์ติ้งของเรา (ต้องเป็น repo บน GitHub)" : "This project needs a build — DevStack builds it in a container and hosts it (GitHub repo required)."}</p>
+            <p className="text-xs text-subtle">{th ? "โปรเจกต์นี้ต้อง build — DevStack จะ build จากซอร์สบนโฮสต์ติ้งของเราใน container แล้วขึ้น *.devstack.bid" : "This project needs a build — DevStack builds from hosted sources in a container and publishes to *.devstack.bid."}</p>
           )}
           <details className="rounded-lg border border-border px-3 py-2 text-sm">
             <summary className="cursor-pointer text-fg">{th ? "ทางเลือก: Deploy เข้าบัญชี Cloudflare ของคุณ" : "Optional: deploy into your own Cloudflare account"}</summary>

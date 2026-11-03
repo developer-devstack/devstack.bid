@@ -24,7 +24,7 @@ Stack Template คือ "สูตร" ตั้งค่าโปรเจก�
 
 - **ช่องค้นหา** ค้นจากชื่อ คำอธิบาย และแท็ก เช่น `python`, `game`, `react`
 - **ชิปหมวดหมู่** (เช่น Dashboard, Game, API, AI app, Data, CLI, Package, Collaborative, Internal tool ตาม `CATEGORY_LABELS` ใน [`src/lib/i18n.ts`](../../src/lib/i18n.ts)) ใช้กรองผล ถ้าไม่พบอะไรจะมีปุ่ม "Clear filters"
-- การ์ดแต่ละใบแสดงไทล์โลโก้เครื่องมือหลัก (เช่น Next.js, FastAPI) หมวด runtime แท็ก และปุ่ม **View steps** / **Open in builder**
+- การ์ดแต่ละใบแสดงไทล์โลโก้เครื่องมือหลัก (เช่น Next.js, FastAPI) หมวด runtime แท็ก และปุ่ม **Deploy** (หลัก → `/deploy?template=<id>` สร้างโปรเจกต์บนโฮสต์ติ้งของ DevStack ไม่สร้าง GitHub repo) / **View steps** (รอง)
 
 ## หน้ารายละเอียดเทมเพลต (`/templates/<id>`)
 
@@ -44,7 +44,7 @@ Stack Template คือ "สูตร" ตั้งค่าโปรเจก�
 - API ล้วน → `express-api` (Node) หรือ `fastapi-ai` (Python)
 - งานข้อมูลเร็ว ๆ → `streamlit-dashboard`
 - เผยแพร่แพ็กเกจ → `node-cli-npx` (npm) หรือ `pypi-package` (PyPI) ขั้น publish จะถูกคอมเมนต์ไว้เสมอ
-- ปุ่ม **Open in builder** เปิด `/builder#t=<id>` ที่ขั้น Configure เพื่อปรับต่อ
+- ปุ่ม **Deploy** เปิด `/deploy?template=<id>` สร้างโปรเจกต์จากซอร์สจริงของเทมเพลตแล้วไปหน้า Deploy ของแพลตฟอร์ม (เทมเพลตเว็บได้ลิงก์ `*.devstack.bid`) · รายละเอียดขั้นยังดูได้ที่ `/templates/<id>`
 
 ## อ้างอิง
 

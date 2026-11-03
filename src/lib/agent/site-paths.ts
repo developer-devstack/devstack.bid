@@ -41,6 +41,7 @@ const STATIC = new Set([
   "/settings/environment",
   "/projects",
   "/new",
+  "/deploy",
   "/design/chat-stream",
   "/design/dst-mascot",
   "/ui-lab",

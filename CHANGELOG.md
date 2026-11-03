@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Unified Chat page:** `/chat` is the single chat workspace with Ask / Build / Dev mode tabs (UI chrome matches `/chat/build`). Model picker stays in Ask. Legacy `/chat/build` and `/chat/dev` redirect to `/chat?mode=build` and `/chat?mode=dev`. Top-bar **Chats/History** button (Ask/Dev) opens the real history drawer/sheet; visible at 390px without scrolling.
+- **/templates Deploy-first:** every template card’s primary action is **Deploy** (`/deploy?template=<id>`). It creates a DevStack-hosted project from the template’s real source (R2/D1 — **no GitHub repo creation**), starts Deploy when the template is a Workers web app, and navigates to `/deployments/:id` (or `/projects/:id` for non-web templates). Replaces the non-working “Open in builder” create path as the default CTA; “View steps” stays secondary.
+- Template detail and `/new` template mode copy match the hosted path (no “creates a GitHub repo” wording). Direct Deploy panel no longer says a GitHub repo is required for container builds.
+
+### Added
+- `/deploy?template=<id>` create-and-deploy flow (`TemplateDeploy`) and `templateDeployName` helper.
 
 ## [0.13.0-rc.5] - 2026-11-02
 

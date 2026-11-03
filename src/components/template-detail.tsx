@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { getTemplate } from "@/data/templates";
+import { profileById } from "@/lib/deploy/templates";
 import { composeSteps, configForTemplate } from "@/lib/composer";
 import { CATEGORY_LABELS } from "@/lib/i18n";
 import { buildContext, resolveText } from "@/lib/placeholders";
@@ -50,9 +51,15 @@ export function TemplateDetail({ id }: { id: string }) {
           <h1 className="mt-4 text-4xl font-bold tracking-tighter text-fg sm:text-5xl">{template.name[lang]}</h1>
           <p className="mt-3 max-w-2xl text-lg text-muted">{template.summary[lang]}</p>
         </div>
-        <Link href={`/builder#t=${template.id}`} className={buttonClasses("primary", "lg")}>
-          {t("catalog.build")} →
-        </Link>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Link href={`/deploy?template=${encodeURIComponent(template.id)}`} className={buttonClasses("primary", "lg", "w-full justify-center sm:w-auto")}>
+            {t("catalog.deploy")}
+            {(profileById(template.id)?.path ?? "none") === "none" ? ` · ${t("catalog.deployCreateOnly")}` : ""}
+          </Link>
+          <Link href="/templates" className={buttonClasses("secondary", "lg", "w-full justify-center sm:w-auto")}>
+            {t("nav.templates")}
+          </Link>
+        </div>
       </div>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">

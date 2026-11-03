@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { CATEGORY_LABELS } from "@/lib/i18n";
 import type { StackTemplate } from "@/lib/types";
+import { profileById } from "@/lib/deploy/templates";
 import { Badge, buttonClasses, Card } from "@/components/ui";
 import { tagTool, templateTool, ToolIcon, ToolTile } from "./brand/tool-icon";
 import { useLang } from "./prefs";
 
 export function TemplateCard({ template }: { template: StackTemplate }) {
   const { lang, t } = useLang();
+  const profile = profileById(template.id);
+  const canLive = (profile?.path ?? "none") !== "none";
   return (
     <Card as="article" interactive className="relative flex flex-col p-6">
       <div className="flex items-center gap-3">
@@ -37,12 +40,19 @@ export function TemplateCard({ template }: { template: StackTemplate }) {
           );
         })}
       </ul>
-      <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-5">
-        <Link href={`/templates/${template.id}`} className={buttonClasses("secondary", "sm")}>
-          {t("catalog.open")} · {template.steps.length} {t("catalog.steps")}
+      <div className="mt-5 flex flex-col gap-2 border-t border-border pt-5 sm:flex-row sm:flex-wrap">
+        <Link
+          href={`/deploy?template=${encodeURIComponent(template.id)}`}
+          className={buttonClasses("primary", "sm", "w-full justify-center sm:w-auto")}
+        >
+          {t("catalog.deploy")}
+          {canLive ? "" : ` · ${t("catalog.deployCreateOnly")}`}
         </Link>
-        <Link href={`/builder#t=${template.id}`} className={buttonClasses("primary", "sm")}>
-          {t("catalog.build")} →
+        <Link
+          href={`/templates/${template.id}`}
+          className={buttonClasses("secondary", "sm", "w-full justify-center sm:w-auto")}
+        >
+          {t("catalog.open")} · {template.steps.length} {t("catalog.steps")}
         </Link>
       </div>
     </Card>
