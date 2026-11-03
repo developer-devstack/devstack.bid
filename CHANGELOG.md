@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Unified Chat page:** `/chat` is the single chat workspace with Ask / Build / Dev mode tabs (UI chrome matches `/chat/build`). Model picker stays in Ask. Legacy `/chat/build` and `/chat/dev` redirect to `/chat?mode=build` and `/chat?mode=dev`.
+
 ## [0.13.0-rc.5] - 2026-11-02
 
 ### Added

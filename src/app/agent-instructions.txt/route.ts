@@ -7,7 +7,7 @@ export async function GET() {
 
 - Generate ordered npm/pip setup scripts from templates or natural language (Builder + /api/plan + MCP compose_stack).
 - Look up Agents SDK / DevStack docs via MCP search_docs or /llms.txt raw Markdown URLs.
-- Run free-tier chat (/chat) or agent sandbox (/chat/dev, /factory) when the user needs interactive help — not for executing shell commands on the server.
+- Run free-tier chat (/chat) or agent sandbox (/chat?mode=dev, /factory) when the user needs interactive help — not for executing shell commands on the server.
 
 ## How to call
 

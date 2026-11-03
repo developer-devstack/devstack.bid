@@ -38,7 +38,7 @@ async function call(url: string, init?: RequestInit) {
 
 const VARIANT: Record<string, BadgeVariant> = { "st.live": "success", "st.failed": "danger", "st.blocked": "warning", "st.dnsBlocked": "warning", "st.pending": "neutral", "st.queued": "info", "st.building": "info", "st.uploading": "info" };
 
-export function AiSiteBuilder() {
+export function AiSiteBuilder({ embedded = false }: { embedded?: boolean } = {}) {
   const { lang: rawLang } = useLang();
   const lang = rawLang === "th" ? "th" : "en";
   const L = (k: AiSiteKey) => AISITE_TEXT[lang][k];
@@ -124,7 +124,9 @@ export function AiSiteBuilder() {
   }
 
   if (signedOut) {
-    return <main className="mx-auto max-w-xl p-6"><Card className="p-6"><p className="text-sm">{L("signInBody")}</p><a className={buttonClasses("primary", "md", "mt-4")} href="/login?next=/chat/build">{L("signIn")}</a></Card></main>;
+    const body = <Card className="p-6"><p className="text-sm">{L("signInBody")}</p><a className={buttonClasses("primary", "md", "mt-4")} href="/login?next=/chat?mode=build">{L("signIn")}</a></Card>;
+    if (embedded) return <div className="mx-auto max-w-xl p-6">{body}</div>;
+    return <main className="mx-auto max-w-xl p-6">{body}</main>;
   }
 
   const infra: Infra | null = st?.infra ?? baseInfra;
@@ -255,27 +257,44 @@ export function AiSiteBuilder() {
     </section>
   );
 
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-2 py-2">
+      {!embedded && <h1 className="text-lg font-semibold">{L("title")}</h1>}
+      <select aria-label={L("projects")} className="min-w-0 max-w-[50vw] rounded-md border border-border bg-surface px-2 py-1 text-sm" value={pid ?? ""} onChange={(e) => switchProject(e.target.value || null)}>
+        <option value="">{L("newProject")}</option>
+        {projects?.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.slug})</option>)}
+      </select>
+      <div className={embedded ? "ml-auto flex gap-1 lg:hidden" : "ml-auto flex gap-1 lg:hidden"} role="tablist">
+        {(["chat", "preview", "history"] as const).map((k) => (
+          <button key={k} role="tab" aria-selected={tab === k} className={buttonClasses(tab === k ? "secondary" : "ghost", "sm")} onClick={() => switchTab(k)}>
+            {L(k)}{k === "preview" && fresh ? <Badge variant="primary" className="ml-1">{L("newVersion")}</Badge> : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const body = (
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-lg border border-border lg:grid-cols-[minmax(320px,2fr)_3fr] lg:divide-x lg:divide-border">
+      {chatPane}
+      {previewPane}
+      {historyPane}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {toolbar}
+        {body}
+      </div>
+    );
+  }
+
   return (
     <main className="mx-auto flex h-[calc(100dvh-3.5rem)] max-w-7xl flex-col px-2 sm:px-4">
-      <div className="flex flex-wrap items-center gap-2 py-2">
-        <h1 className="text-lg font-semibold">{L("title")}</h1>
-        <select aria-label={L("projects")} className="min-w-0 max-w-[50vw] rounded-md border border-border bg-surface px-2 py-1 text-sm" value={pid ?? ""} onChange={(e) => switchProject(e.target.value || null)}>
-          <option value="">{L("newProject")}</option>
-          {projects?.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.slug})</option>)}
-        </select>
-        <div className="ml-auto flex gap-1 lg:hidden" role="tablist">
-          {(["chat", "preview", "history"] as const).map((k) => (
-            <button key={k} role="tab" aria-selected={tab === k} className={buttonClasses(tab === k ? "secondary" : "ghost", "sm")} onClick={() => switchTab(k)}>
-              {L(k)}{k === "preview" && fresh ? <Badge variant="primary" className="ml-1">{L("newVersion")}</Badge> : null}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-lg border border-border lg:grid-cols-[minmax(320px,2fr)_3fr] lg:divide-x lg:divide-border">
-        {chatPane}
-        {previewPane}
-        {historyPane}
-      </div>
+      {toolbar}
+      {body}
     </main>
   );
 }
