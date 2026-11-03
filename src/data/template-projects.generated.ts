@@ -32,7 +32,7 @@ export const TEMPLATE_PROJECTS: Record<string, { path: string; content: string }
   },
   {
    "path": "package.json",
-   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"opennextjs-cloudflare build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
+   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\",\n    \"deploy\": \"opennextjs-cloudflare build && opennextjs-cloudflare deploy\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
   },
   {
    "path": "wrangler.jsonc",
@@ -74,7 +74,7 @@ export const TEMPLATE_PROJECTS: Record<string, { path: string; content: string }
   },
   {
    "path": "package.json",
-   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"opennextjs-cloudflare build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
+   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\",\n    \"deploy\": \"opennextjs-cloudflare build && opennextjs-cloudflare deploy\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
   },
   {
    "path": "wrangler.jsonc",
@@ -112,7 +112,7 @@ export const TEMPLATE_PROJECTS: Record<string, { path: string; content: string }
   },
   {
    "path": "package.json",
-   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"opennextjs-cloudflare build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\",\n    \"recharts\": \"3.10.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
+   "content": "{\n  \"name\": \"devstack-template-app\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"dev\": \"next dev\",\n    \"build\": \"next build\",\n    \"preview\": \"opennextjs-cloudflare build && opennextjs-cloudflare preview\",\n    \"deploy\": \"opennextjs-cloudflare build && opennextjs-cloudflare deploy\"\n  },\n  \"dependencies\": {\n    \"next\": \"16.4.3\",\n    \"react\": \"19.3.1\",\n    \"react-dom\": \"19.3.1\",\n    \"recharts\": \"3.10.1\"\n  },\n  \"engines\": {\n    \"node\": \">=20\"\n  },\n  \"devDependencies\": {\n    \"@opennextjs/cloudflare\": \"1.20.10\",\n    \"wrangler\": \"4.149.0\"\n  }\n}\n"
   },
   {
    "path": "wrangler.jsonc",

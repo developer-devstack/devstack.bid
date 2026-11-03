@@ -38,13 +38,13 @@ describe("templates go through the build pipeline", () => {
     for (const [id, files] of Object.entries(TEMPLATE_PROJECTS)) {
       const cfg = files.find((f) => f.path === "next.config.mjs");
       const b = templateBuild(id)!;
-      expect(b.build).toBe("npm run build");
+      expect(b.build).toBe(cfg ? "npx opennextjs-cloudflare build" : "npm run build");
       if (cfg) {
         expect(cfg.content).not.toContain('output: "export"');
         expect(b.output).toBe(".open-next");
         expect(DEPLOY_PROFILES[id].target).toBe("opennext");
         const pkg = JSON.parse(files.find((f) => f.path === "package.json")!.content);
-        expect(pkg.scripts.build).toBe("opennextjs-cloudflare build");
+        expect(pkg.scripts.build).toBe("next build");
         expect(pkg.devDependencies["@opennextjs/cloudflare"]).toBeTruthy();
         expect(files.find((f) => f.path === "package-lock.json")!.content).toContain("@opennextjs/cloudflare");
       } else expect(b.output).toBe("dist");

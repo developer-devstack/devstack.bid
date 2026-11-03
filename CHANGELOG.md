@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0-rc.7] - 2026-11-04
+
+### Fixed
+- **Template / hosted install ERESOLVE on `@vercel/otel`:** build container bumps `@vercel/otel` 1.x → `2.2.1` in the build workspace before install (Next.js 15/16 + modern OpenTelemetry peers conflict with `@vercel/otel@^1.12.0`). If `npm ci`/`npm install` still fails with ERESOLVE, retry once with `npm install --legacy-peer-deps` and log the fallback in Thai. First-party `template-projects/*` stay free of `@vercel/otel`; the sanitize + retry cover imported/AI/uploaded apps that still pin 1.x.
+- **OpenNext build hang on template Deploy:** root cause was **recursive OpenNext builds**: Next templates set `scripts.build` to `opennextjs-cloudflare build` while the hosted job also ran that (or `npm run build`), and OpenNext's `buildNextjsApp` re-invokes `npm run build` — infinite spawn until OOM/thrash; logs stopped after "OpenNext — Build for Cloudflare". Fixes: templates + `openNextPackagePatch` use `scripts.build: "next build"`; `templateBuild()` outer command is `npx opennextjs-cloudflare build`; build container rewrites recursive `scripts.build` at build time (Thai log); bump Containers `instance_type` to `standard-3` (2 vCPU / 8 GiB); platform `NODE_OPTIONS=--max-old-space-size=6144`; process-group kill on cancel/timeout; hard install (8 min) / build (12 min) + 4-minute no-log stall kill; AbortController on the executor `/build` fetch; clear Thai `timed_out` (quota excluded).
+
 ## [0.13.0-rc.6] - 2026-11-03
 
 ### Changed

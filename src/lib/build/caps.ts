@@ -1,4 +1,4 @@
-/** Build capacity caps (owner-approved): 2 concurrent container builds, 15 min each, per-user daily limit. */
+/** Build capacity caps (owner-approved): 2 concurrent container builds, 15 min outer each (container also has install/build/stall kills), per-user daily limit. */
 import type { D1Like } from "@/lib/chat/store";
 
 export const MAX_CONCURRENT_BUILDS = 2;

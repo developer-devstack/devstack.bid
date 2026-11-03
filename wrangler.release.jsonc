@@ -198,7 +198,7 @@
       "class_name": "BuildContainer",
       "image": "./container/Dockerfile",
       "max_instances": 2,
-      "instance_type": "standard-1"
+      "instance_type": "standard-3"
     }
   ],
   "durable_objects": {

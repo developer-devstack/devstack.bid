@@ -181,6 +181,8 @@ export function deployConfigFiles(p: DeployProfile, workerName: string, compatib
 /** package.json edits for OpenNext (applied by the prepare PR when package.json exists). */
 export function openNextPackagePatch(pkg: Record<string, unknown>): Record<string, unknown> {
   const scripts = { ...(pkg.scripts as Record<string, string> | undefined) };
+  // OpenNext's buildNextjsApp runs `npm run build`; that script must be `next build`, never opennext again.
+  scripts.build = "next build";
   scripts.deploy = "opennextjs-cloudflare build && opennextjs-cloudflare deploy";
   scripts.preview = "opennextjs-cloudflare build && opennextjs-cloudflare preview";
   const dev = { ...(pkg.devDependencies as Record<string, string> | undefined), "@opennextjs/cloudflare": "^1.20.10", wrangler: "^4.149.0" };
