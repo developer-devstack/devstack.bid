@@ -51,7 +51,7 @@
 
 ## เบราว์เซอร์ที่รองรับ
 
-เราทดสอบกับ Chromium บนเดสก์ท็อป (Chrome, Edge) Firefox และ Safari ควรใช้ได้ เพราะ Studio ใช้แค่ iframe, Web Worker และ WebAssembly มาตรฐาน แต่เรายังไม่ได้ทดสอบ บนมือถือหน้าจอเล็กเกินไปสำหรับ workspace นี้ เราแนะนำให้ใช้คอมพิวเตอร์
+เราทดสอบกับ Chromium บนเดสก์ท็อป (Chrome, Edge) Firefox และ Safari ควรใช้ได้ เพราะ Studio ใช้แค่ iframe, Web Worker และ WebAssembly มาตรฐาน บนมือถือใช้เลย์เอาต์แบบแท็บ (คุย / ดูผล / โค้ด / ข้อมูล / ภาพ) แล้ว ใช้งานสร้างแอปได้ แต่จอใหญ่ยังสบายตาและครบแผงมากกว่า
 
 ## แก้ปัญหา
 
@@ -61,4 +61,4 @@
 
 ## In English
 
-Studio (`/studio`) is the DEVSTACK workspace we merged into devstack.bid: four agents (Core, Code, DB, Design) build a full-stack app in your browser with a static live preview (compiled in the browser with Sucrase, run in a sandboxed iframe with no network; only `react` and `react-dom` can be imported, there is no npm install or Node), PGlite + pgvector, FLUX images and a one-click export zip. Every part is open source with no third-party runtime fees. AI calls go through our own server (`/api/studio/*`, Workers AI first, then Hugging Face DeepSeek V3) with free daily quotas per browser: 60 AI calls, plus the 5 images shared with User Chat. No key is needed and none reaches your browser. When AI is unavailable or the quota is used up, the agents fall back to tested templates and placeholder images, so the whole flow still works. Architecture: [Studio architecture](../architecture/studio.md).
+Studio (`/studio`) is the DEVSTACK workspace we merged into devstack.bid: four agents (Core, Code, DB, Design) build a full-stack app in your browser with a static live preview (compiled in the browser with Sucrase, run in a sandboxed iframe with no network; only `react` and `react-dom` can be imported, there is no npm install or Node), PGlite + pgvector, FLUX images and a one-click export zip. Every part is open source with no third-party runtime fees. AI calls go through our own server (`/api/studio/*`, Workers AI first, then Hugging Face DeepSeek V3) with free daily quotas per browser: 60 AI calls, plus the 5 images shared with User Chat. No key is needed and none reaches your browser. When AI is unavailable or the quota is used up, the agents fall back to tested templates and placeholder images, so the whole flow still works. On phones Studio uses a tabbed layout (Chat / Preview / Code / Data / Pics); a larger screen still shows every panel at once. Architecture: [Studio architecture](../architecture/studio.md).

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDevstack, useRuntime } from '@/context/hooks';
 import { useLang } from '@/i18n';
 
-export function AssetPanel() {
+export function AssetPanel({ embedded = false }: { embedded?: boolean }) {
   const { t } = useLang();
   const rt = useRuntime();
   const assets = useDevstack((s) => s.assets);
@@ -12,7 +12,7 @@ export function AssetPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!open) return null;
+  if (!embedded && !open) return null;
 
   const onGenerate = async () => {
     if (!prompt.trim()) return;
@@ -31,23 +31,29 @@ export function AssetPanel() {
   return (
     <aside
       data-testid="asset-panel"
-      className="panel absolute right-2 top-2 bottom-2 z-20 flex w-60 flex-col overflow-hidden shadow-2xl shadow-black/80 xl:static xl:right-auto xl:top-auto xl:bottom-auto xl:z-auto"
+      className={
+        embedded
+          ? 'panel flex h-full w-full flex-col overflow-hidden'
+          : 'panel absolute right-2 top-2 bottom-2 z-20 flex w-60 flex-col overflow-hidden shadow-2xl shadow-black/80 xl:static xl:right-auto xl:top-auto xl:bottom-auto xl:z-auto'
+      }
     >
       <header className="panel-header flex items-start justify-between px-3 py-3">
         <div>
           <h2 className="font-display text-sm font-semibold tracking-display">{t('assets.title')}</h2>
-          <p className="text-[11px] text-devstack-muted">
-            {backend?.image ? backend.imageModel : 'placeholder generator'} → /public/assets
+          <p className="text-[12px] text-devstack-muted">
+            {embedded ? t('assets.prompt') : `${backend?.image ? backend.imageModel : 'placeholder'} → /public/assets`}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label={t('assets.close')}
-          onClick={() => rt.store.setState({ assetPanelOpen: false })}
-          className="text-xs text-devstack-muted hover:text-white"
-        >
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-        </button>
+        {!embedded ? (
+          <button
+            type="button"
+            aria-label={t('assets.close')}
+            onClick={() => rt.store.setState({ assetPanelOpen: false })}
+            className="min-h-9 min-w-9 text-xs text-devstack-muted hover:text-white"
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        ) : null}
       </header>
       <div className="space-y-2 border-b border-devstack-border p-2">
         <textarea
@@ -55,15 +61,15 @@ export function AssetPanel() {
           onChange={(e) => setPrompt(e.target.value)}
           rows={3}
           placeholder={t('assets.prompt')}
-          className="w-full resize-none rounded border border-devstack-border bg-black p-2 text-xs text-white outline-none focus:border-devstack-accent"
+          className="w-full resize-none rounded border border-devstack-border bg-black p-3 text-base text-white outline-none focus:border-devstack-accent"
         />
         <button
           type="button"
           disabled={busy || !prompt.trim()}
           onClick={() => void onGenerate()}
-          className="btn-ai w-full py-1.5 text-xs font-medium"
+          className="btn-ai min-h-11 w-full py-2.5 text-sm font-medium"
         >
-          {busy ? 'Generating…' : 'Generate image'}
+          {busy ? t('assets.generating') : t('assets.generate')}
         </button>
         {error && <p className="text-[11px] text-red-400">{error}</p>}
       </div>

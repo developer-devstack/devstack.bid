@@ -40,7 +40,7 @@ function Grid({ rows, lang }: { rows: Record<string, unknown>[]; lang: Lang }) {
   );
 }
 
-export default function DataInspector() {
+export default function DataInspector({ mobile = false }: { mobile?: boolean }) {
   const { t, lang } = useLang();
   const rt = useRuntime();
   const open = useDevstack((s) => s.dataInspectorOpen);
@@ -56,50 +56,64 @@ export default function DataInspector() {
   const [query, setQuery] = useState('');
   const [sql, setSql] = useState('SELECT * FROM todos ORDER BY id;');
 
-  if (!open) {
+  if (!open && !mobile) {
     return (
       <button
         type="button"
         onClick={() => rt.store.setState({ dataInspectorOpen: true })}
-        className="panel px-4 py-2 text-left text-xs text-devstack-muted hover:text-devstack-accent"
+        className="panel min-h-10 px-4 py-2 text-left text-sm text-devstack-muted hover:text-devstack-accent"
       >
-        ▲ Data Inspector
+        ▲ {t('inspector.expand')}
       </button>
     );
   }
 
+  const tabLabel = (key: Tab) =>
+    key === 'grid'
+      ? t('inspector.tab.grid')
+      : key === 'schema'
+        ? t('inspector.tab.schema')
+        : key === 'vector'
+          ? t('inspector.tab.vector')
+          : t('inspector.tab.sql');
+
   return (
-    <section className="panel flex h-[300px] shrink-0 flex-col overflow-hidden" data-testid="data-inspector">
-      <header className="panel-header flex items-center justify-between px-4 py-2">
-        <div className="flex items-baseline gap-3">
+    <section
+      className={`panel flex shrink-0 flex-col overflow-hidden ${mobile ? 'h-full min-h-0' : 'h-[300px]'}`}
+      data-testid="data-inspector"
+    >
+      <header className={`panel-header flex px-4 py-2 ${mobile ? 'flex-col items-stretch gap-2' : 'items-center justify-between'}`}>
+        <div className={`flex ${mobile ? 'items-center justify-between' : 'items-baseline gap-3'}`}>
           <h2 className="font-display text-sm font-semibold tracking-display">{t('inspector.title')}</h2>
-          <p className="text-[11px] text-devstack-muted">PGlite (Postgres WASM) · native pgvector · HNSW</p>
+          <p className={`text-[12px] text-devstack-muted ${mobile ? '' : ''}`}>{t('inspector.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-1">
-          {(['grid', 'schema', 'vector', 'sql'] as const).map((t) => (
+        <div className={`flex items-center gap-1 ${mobile ? 'overflow-x-auto' : ''}`}>
+          {(['grid', 'schema', 'vector', 'sql'] as const).map((key) => (
             <button
-              key={t}
+              key={key}
               type="button"
-              data-testid={`inspector-tab-${t}`}
-              onClick={() => setTab(t)}
-              className={`rounded px-2 py-1 font-mono text-[11px] ${
-                tab === t ? 'bg-devstack-secondary text-devstack-accent' : 'text-devstack-muted hover:text-white'
+              data-testid={`inspector-tab-${key}`}
+              onClick={() => setTab(key)}
+              className={`min-h-9 shrink-0 rounded px-3 py-1.5 text-xs ${
+                tab === key ? 'bg-devstack-secondary text-devstack-accent' : 'text-devstack-muted hover:text-white'
               }`}
             >
-              {t === 'grid' ? 'Grid' : t === 'schema' ? 'Schema topology' : t === 'vector' ? 'Vector search' : 'SQL'}
+              {tabLabel(key)}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => rt.store.setState({ dataInspectorOpen: false })}
-            className="ml-2 text-xs text-devstack-muted hover:text-white"
-          >
-            Collapse ▼
-          </button>
+          {!mobile ? (
+            <button
+              type="button"
+              onClick={() => rt.store.setState({ dataInspectorOpen: false })}
+              className="ml-2 min-h-9 text-xs text-devstack-muted hover:text-white"
+            >
+              {t('inspector.collapse')} ▼
+            </button>
+          ) : null}
         </div>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <ul className="w-48 shrink-0 overflow-y-auto border-r border-devstack-border py-1" data-testid="table-list">
+      <div className={`flex min-h-0 flex-1 ${mobile ? 'flex-col' : ''}`}>
+        <ul className={`shrink-0 overflow-y-auto border-devstack-border py-1 ${mobile ? 'flex max-h-28 w-full gap-1 overflow-x-auto border-b px-2' : 'w-48 border-r'}`} data-testid="table-list">
           {tables.map((t) => (
             <li key={t}>
               <button
@@ -109,12 +123,16 @@ export default function DataInspector() {
                   setTab('grid');
                   void rt.selectTable(t);
                 }}
-                className={`flex w-full items-center justify-between px-3 py-1 text-left font-mono text-[11px] ${
+                className={`flex items-center justify-between text-left font-mono ${
+                  mobile
+                    ? 'min-h-10 shrink-0 rounded-md border border-devstack-border px-3 py-2 text-xs'
+                    : 'w-full px-3 py-1 text-[11px]'
+                } ${
                   t === selected ? 'bg-devstack-secondary text-devstack-accent' : 'text-devstack-muted hover:text-white'
                 }`}
               >
                 <span className="truncate">{t}</span>
-                <span className="text-[10px] opacity-70">{rowCounts[t] ?? 0}</span>
+                <span className="ml-2 text-[10px] opacity-70">{rowCounts[t] ?? 0}</span>
               </button>
             </li>
           ))}

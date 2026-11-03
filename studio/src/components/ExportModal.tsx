@@ -43,7 +43,7 @@ export default function ExportModal() {
             <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
           </button>
         </header>
-        <div className="grid grid-cols-3 gap-3 p-5">
+        <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-3">
           {SECTIONS.map((s) => (
             <div key={s.title} className="rounded border border-devstack-border bg-black/40 p-3">
               <p className="mb-2 font-display text-xs font-semibold text-devstack-accent">{s.title}</p>
@@ -68,13 +68,13 @@ export default function ExportModal() {
           </div>
         )}
         {error && <p className="mx-5 mb-3 text-xs text-red-400">{error}</p>}
-        <footer className="flex justify-end gap-2 border-t border-devstack-border px-5 py-4">
+        <footer className="flex flex-col-reverse gap-2 border-t border-devstack-border px-5 py-4 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={() => rt.store.setState({ exportOpen: false })}
-            className="rounded border border-devstack-border px-4 py-2 text-sm text-devstack-muted hover:text-white"
+            className="min-h-11 rounded border border-devstack-border px-4 py-2 text-sm text-devstack-muted hover:text-white"
           >
-            Close
+            {t('export.close')}
           </button>
           <button
             type="button"
@@ -84,9 +84,9 @@ export default function ExportModal() {
               setError(null);
               rt.exportDeployZip().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
             }}
-            className="rounded-md border border-devstack-border px-4 py-2 text-sm font-semibold hover:bg-white/5 disabled:opacity-60"
+            className="min-h-11 rounded-md border border-devstack-border px-4 py-2 text-sm font-semibold hover:bg-white/5 disabled:opacity-60"
           >
-            Download deploy zip
+            {t('export.download')}
           </button>
           <button
             type="button"
@@ -96,9 +96,9 @@ export default function ExportModal() {
               setError(null);
               rt.exportProject().catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
             }}
-            className="rounded-md bg-devstack-cta px-4 py-2 text-sm font-semibold text-white hover:bg-devstack-cta-hover disabled:opacity-60"
+            className="min-h-11 rounded-md bg-devstack-cta px-4 py-2 text-sm font-semibold text-black hover:bg-devstack-cta-hover disabled:opacity-60"
           >
-            {exporting ? 'Bundling…' : 'Download .zip'}
+            {exporting ? t('assets.generating') : t('export.download')}
           </button>
         </footer>
       </div>

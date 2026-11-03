@@ -11,7 +11,7 @@ const AGENTS: { kind: AgentKind; label: string }[] = [
   { kind: 'design', label: 'Design' },
 ];
 
-export function AgentChat() {
+export function AgentChat({ fullWidth = false }: { fullWidth?: boolean }) {
   const rt = useRuntime();
   const { t } = useLang();
   const messages = useDevstack((s) => s.messages);
@@ -46,11 +46,14 @@ export function AgentChat() {
   };
 
   return (
-    <aside className="panel flex h-full w-[320px] shrink-0 flex-col overflow-hidden" data-testid="agent-chat">
+    <aside
+      className={`panel flex h-full shrink-0 flex-col overflow-hidden ${fullWidth ? 'w-full' : 'w-[320px]'}`}
+      data-testid="agent-chat"
+    >
       <header className="panel-header flex items-center justify-between px-4 py-3">
         <div>
           <h2 className="font-display text-sm font-semibold tracking-display text-white">{t('chat.title')}</h2>
-          <p className="text-[11px] text-devstack-muted">{t('chat.subtitle')}</p>
+          <p className="text-[12px] text-devstack-muted">{t('chat.subtitle')}</p>
         </div>
         <span
           data-testid="thinking-indicator"
@@ -59,23 +62,25 @@ export function AgentChat() {
           title={thinking ? `${t('chat.thinking')} (${thinkingAgent ?? 'orchestrator'})` : t('chat.idle')}
         />
       </header>
-      <div className="flex gap-1 border-b border-devstack-border px-3 py-2">
-        {AGENTS.map((a) => {
-          const active = thinking && activeAgents.includes(a.kind);
-          return (
-            <span
-              key={a.kind}
-              className={`rounded border px-2 py-0.5 font-mono text-[10px] ${
-                active
-                  ? 'neon-pulse border-devstack-accent text-devstack-accent'
-                  : 'border-devstack-border text-devstack-muted'
-              }`}
-            >
-              {a.label}
-            </span>
-          );
-        })}
-      </div>
+      {!fullWidth ? (
+        <div className="flex gap-1 border-b border-devstack-border px-3 py-2">
+          {AGENTS.map((a) => {
+            const active = thinking && activeAgents.includes(a.kind);
+            return (
+              <span
+                key={a.kind}
+                className={`rounded border px-2 py-0.5 font-mono text-[10px] ${
+                  active
+                    ? 'neon-pulse border-devstack-accent text-devstack-accent'
+                    : 'border-devstack-border text-devstack-muted'
+                }`}
+              >
+                {a.label}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-3 py-3" data-testid="chat-messages">
         {messages.length <= 1 ? (
@@ -87,7 +92,7 @@ export function AgentChat() {
           <div
             key={m.id}
             data-role={m.role}
-            className={`rounded-md border px-3 py-2 text-[13px] ${
+            className={`rounded-md border px-3 py-2 text-[14px] ${
               m.role === 'user'
                 ? 'border-devstack-accent/40 bg-devstack-surface-alt'
                 : m.role === 'system'
@@ -106,7 +111,7 @@ export function AgentChat() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="rounded border border-devstack-border px-2 py-1 text-xs text-devstack-muted hover:border-devstack-accent hover:text-white"
+            className="min-h-10 rounded border border-devstack-border px-3 py-2 text-sm text-devstack-muted hover:border-devstack-accent hover:text-white"
           >
             {t('chat.import')}
           </button>
@@ -114,7 +119,7 @@ export function AgentChat() {
             type="button"
             disabled={thinking}
             onClick={() => submit('build a todo app')}
-            className="btn-ai flex-1 px-3 py-1 text-xs font-medium"
+            className="btn-ai min-h-10 flex-1 px-3 py-2 text-sm font-medium"
           >
             {t('chat.demo')}
           </button>
@@ -132,21 +137,21 @@ export function AgentChat() {
             e.target.value = '';
           }}
         />
-        <form onSubmit={onSubmit} className="flex items-end gap-2">
+        <form onSubmit={onSubmit} className={`gap-2 ${fullWidth ? 'flex flex-col' : 'flex items-end'}`}>
           <textarea
             data-testid="prompt-input"
             value={input}
-            rows={2}
+            rows={fullWidth ? 3 : 2}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKey}
             placeholder={t('chat.placeholder')}
-            className="max-h-32 flex-1 resize-none rounded-md border border-devstack-border bg-black px-3 py-2 text-sm text-white outline-none placeholder:text-devstack-muted/60 focus:border-devstack-accent focus:shadow-accent-glow"
+            className="max-h-40 w-full flex-1 resize-none rounded-md border border-devstack-border bg-black px-3 py-2.5 text-base text-white outline-none placeholder:text-devstack-muted/60 focus:border-devstack-accent focus:shadow-accent-glow"
           />
           <button
             type="submit"
             data-testid="prompt-submit"
             disabled={thinking || !input.trim()}
-            className="btn-ai px-4 py-2 text-sm font-semibold"
+            className={`btn-ai min-h-11 px-4 py-2.5 text-sm font-semibold ${fullWidth ? 'w-full' : ''}`}
           >
             {t('chat.run')}
           </button>
