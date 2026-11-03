@@ -3,11 +3,11 @@ import { useLang, type StringKey } from '@/i18n';
 export type MobileTab = 'chat' | 'preview' | 'code' | 'data' | 'assets';
 
 const TABS: { id: MobileTab; labelKey: StringKey; icon: string }[] = [
-  { id: 'chat', labelKey: 'mobile.tab.chat', icon: '💬' },
-  { id: 'preview', labelKey: 'mobile.tab.preview', icon: '👀' },
+  { id: 'chat', labelKey: 'mobile.tab.chat', icon: '◎' },
+  { id: 'preview', labelKey: 'mobile.tab.preview', icon: '◉' },
   { id: 'code', labelKey: 'mobile.tab.code', icon: '</>' },
   { id: 'data', labelKey: 'mobile.tab.data', icon: '▦' },
-  { id: 'assets', labelKey: 'mobile.tab.assets', icon: '🖼' },
+  { id: 'assets', labelKey: 'mobile.tab.assets', icon: '▣' },
 ];
 
 export function MobileTabBar({ tab, onChange }: { tab: MobileTab; onChange: (t: MobileTab) => void }) {
