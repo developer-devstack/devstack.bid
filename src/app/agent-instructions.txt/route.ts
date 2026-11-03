@@ -6,7 +6,7 @@ export async function GET() {
 ## When to use DevStack
 
 - Generate ordered npm/pip setup scripts from templates or natural language (Builder + /api/plan + MCP compose_stack).
-- Deploy a template to DevStack hosting without creating a GitHub repo (`/templates` → Deploy → `/deploy?template=<id>`).
+- Deploy a template to DevStack hosting without creating a GitHub repo (/templates → Deploy → /deploy?template=<id>).
 - Look up Agents SDK / DevStack docs via MCP search_docs or /llms.txt raw Markdown URLs.
 - Run free-tier chat (/chat) or agent sandbox (/chat?mode=dev, /factory) when the user needs interactive help — not for executing shell commands on the server.
 
