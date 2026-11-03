@@ -141,3 +141,7 @@ pre,
   outline: 2px solid var(--nvx-ring);
   outline-offset: 2px;
 }
+
+.safe-bottom {
+  padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+}

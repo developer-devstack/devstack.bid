@@ -55,48 +55,87 @@ export const STRINGS = {
   'lang.toggle': { en: 'ไทย', th: 'EN' },
   'lang.label': { en: 'Switch language to Thai', th: 'เปลี่ยนภาษาเป็นอังกฤษ' },
   'header.assets': { en: 'Assets', th: 'ภาพ' },
-  'header.export': { en: 'DEPLOY / EXPORT', th: 'DEPLOY / EXPORT' },
+  'header.export': { en: 'DEPLOY / EXPORT', th: 'บันทึก / ดาวน์โหลด' },
+  'header.export.short': { en: 'Save', th: 'บันทึก' },
   'chip.quota': { en: 'Free today', th: 'ฟรีวันนี้' },
-  'chat.title': { en: 'Agent Core', th: 'Agent Core' },
-  'chat.subtitle': { en: 'Orchestrator → Code · DB · Design', th: 'Orchestrator → Code · DB · Design' },
+  'chip.quota.short': { en: '{calls} AI · {images} img', th: 'เหลือ {calls} ครั้ง · ภาพ {images}' },
+  'chip.status.ready': { en: 'Ready to build', th: 'พร้อมสร้างแล้ว' },
+  'chip.status.starting': { en: 'Getting ready…', th: 'กำลังเตรียม…' },
+  'chip.status.error': { en: 'Something went wrong', th: 'มีปัญหา ลองรีเฟรช' },
+  'chip.image': { en: 'Image', th: 'ภาพ' },
+  'chip.sandbox': { en: 'Preview', th: 'พรีวิว' },
+  'chip.db': { en: 'Data', th: 'ข้อมูล' },
+  'chip.db.ready': { en: 'ready', th: 'พร้อม' },
+  'chip.db.starting': { en: 'starting', th: 'กำลังเปิด' },
+  'chat.title': { en: 'Build with AI', th: 'สร้างด้วย AI' },
+  'chat.subtitle': { en: 'Tell us what you want — we write the app', th: 'บอกสิ่งที่อยากได้ — เราช่วยเขียนแอปให้' },
   'chat.welcome': {
-    en: 'Studio is ready. Describe an app (try “build a todo app”). CodeAgent writes the code, DBAgent designs tables in PGlite + pgvector, DesignAgent makes artwork. Import Markdown to ground the agents.',
-    th: 'Studio พร้อมแล้ว บอกเราว่าอยากได้แอปอะไร (ลอง “build a todo app”) CodeAgent เขียนโค้ด DBAgent ออกแบบตารางใน PGlite + pgvector DesignAgent วาดภาพประกอบ นำเข้า Markdown เพื่อให้ agent รู้บริบทของคุณ',
+    en: 'Studio is ready. Describe an app (try “build a todo app”). We will write the code, set up the data, and draw pictures. You can also import a Markdown brief.',
+    th: 'Studio พร้อมแล้ว บอกเราว่าอยากได้แอปอะไร (ลอง “สร้างแอป todo”) เราจะช่วยเขียนโค้ด จัดข้อมูล และวาดภาพให้ นำเข้าไฟล์ Markdown ได้ถ้ามีรายละเอียด',
   },
-  'chat.import': { en: 'Import MD', th: 'นำเข้า MD' },
-  'chat.demo': { en: 'Demo: build a todo app', th: 'ตัวอย่าง: build a todo app' },
+  'chat.import': { en: 'Import note', th: 'นำเข้าโน้ต' },
+  'chat.demo': { en: 'Try: build a todo app', th: 'ลอง: สร้างแอป todo' },
   'chat.placeholder': { en: 'Describe what to build…', th: 'อธิบายสิ่งที่อยากสร้าง…' },
-  'chat.run': { en: 'Run', th: 'รัน' },
-  'chat.thinking': { en: 'Thinking', th: 'กำลังคิด' },
+  'chat.run': { en: 'Build', th: 'สร้าง' },
+  'chat.thinking': { en: 'Working', th: 'กำลังทำงาน' },
   'chat.idle': { en: 'Idle', th: 'ว่าง' },
-  'assets.title': { en: 'AI Assets', th: 'ภาพจาก AI' },
-  'assets.close': { en: 'Close assets', th: 'ปิดแผงภาพ' },
-  'assets.prompt': { en: 'Image prompt…', th: 'คำบรรยายภาพ…' },
-  'assets.empty': { en: 'No assets yet.', th: 'ยังไม่มีภาพ' },
-  'inspector.title': { en: 'Data Inspector', th: 'Data Inspector' },
-  'inspector.noRows': { en: 'No rows.', th: 'ไม่มีแถวข้อมูล' },
-  'inspector.vectorPlaceholder': { en: 'Semantic query, e.g. “tasks table”', th: 'ค้นหาตามความหมาย เช่น “tasks table”' },
-  'inspector.vectorHelp': { en: 'Embeddings: schema docs, prompts and imported vault chunks.', th: 'Embedding: เอกสาร schema, prompt และเนื้อหาที่นำเข้า' },
-  'export.title': { en: 'Deploy / Export', th: 'Deploy / Export' },
-  'export.subtitle': { en: 'Snapshot the sandbox, database and assets into a deployable bundle.', th: 'รวมโค้ดใน sandbox ฐานข้อมูล และภาพ เป็นไฟล์ zip ที่ deploy ได้' },
+  'assets.title': { en: 'Pictures', th: 'ภาพประกอบ' },
+  'assets.close': { en: 'Close pictures', th: 'ปิดแผงภาพ' },
+  'assets.prompt': { en: 'Describe the picture…', th: 'อธิบายภาพที่อยากได้…' },
+  'assets.empty': { en: 'No pictures yet.', th: 'ยังไม่มีภาพ' },
+  'assets.generate': { en: 'Generate image', th: 'สร้างภาพ' },
+  'assets.generating': { en: 'Generating…', th: 'กำลังสร้าง…' },
+  'inspector.title': { en: 'Your data', th: 'ข้อมูลในแอป' },
+  'inspector.subtitle': { en: 'Tables created for this app', th: 'ตารางที่สร้างให้แอปนี้' },
+  'inspector.noRows': { en: 'No rows yet.', th: 'ยังไม่มีข้อมูล' },
+  'inspector.vectorPlaceholder': { en: 'Search by meaning, e.g. “tasks”', th: 'ค้นหาตามความหมาย เช่น “งาน”' },
+  'inspector.vectorHelp': { en: 'Search notes and table descriptions by meaning.', th: 'ค้นหาโน้ตและคำอธิบายตารางตามความหมาย' },
+  'inspector.tab.grid': { en: 'Table', th: 'ตาราง' },
+  'inspector.tab.schema': { en: 'Structure', th: 'โครงสร้าง' },
+  'inspector.tab.vector': { en: 'Search', th: 'ค้นหา' },
+  'inspector.tab.sql': { en: 'SQL', th: 'SQL' },
+  'inspector.collapse': { en: 'Hide', th: 'ซ่อน' },
+  'inspector.expand': { en: 'Show data', th: 'ดูข้อมูล' },
+  'export.title': { en: 'Save your app', th: 'บันทึกแอปของคุณ' },
+  'export.subtitle': { en: 'Download a zip with code, data and pictures — ready to host.', th: 'ดาวน์โหลดไฟล์ zip มีโค้ด ข้อมูล และภาพ พร้อมเอาไปโฮสต์' },
+  'export.close': { en: 'Close', th: 'ปิด' },
+  'export.download': { en: 'Download zip', th: 'ดาวน์โหลด zip' },
   'common.close': { en: 'Close', th: 'ปิด' },
-  'preview.static': { en: 'static preview', th: 'พรีวิวแบบ static' },
+  'preview.static': { en: 'live preview', th: 'พรีวิวสด' },
   'preview.static.hint': {
-    en: 'Bundled in your browser with Sucrase and run in a sandboxed iframe. Only react and react-dom can be imported; there is no npm install.',
-    th: 'รวมโค้ดในเบราว์เซอร์ด้วย Sucrase แล้วรันใน iframe แบบ sandbox import ได้เฉพาะ react และ react-dom ไม่มี npm install',
+    en: 'Runs safely in your browser. Only React is available for now.',
+    th: 'รันอย่างปลอดภัยในเบราว์เซอร์ของคุณ ตอนนี้ใช้ React ได้',
   },
-  'preview.waiting': { en: 'Preview appears when the bundle is ready', th: 'พรีวิวจะแสดงเมื่อรวมโค้ดเสร็จ' },
-  'preview.output': { en: 'Output (bundler + console)', th: 'Output (bundler + console)' },
-  'preview.title': { en: 'Sandbox preview', th: 'ตัวอย่างแอปใน sandbox' },
+  'preview.waiting': { en: 'Preview appears when the app is ready', th: 'พรีวิวจะโชว์เมื่อแอปพร้อม' },
+  'preview.output': { en: 'Log', th: 'บันทึกการทำงาน' },
+  'preview.title': { en: 'App preview', th: 'ตัวอย่างแอป' },
+  'preview.reload': { en: 'Reload', th: 'รีโหลด' },
+  'preview.live': { en: 'Live preview', th: 'พรีวิวสด' },
+  'editor.files': { en: 'Files', th: 'ไฟล์' },
+  'editor.reloadHint': { en: 'edits refresh the preview', th: 'แก้แล้วพรีวิวอัปเดต' },
+  'mobile.nav': { en: 'Studio sections', th: 'เมนู Studio' },
+  'mobile.tab.chat': { en: 'Chat', th: 'คุย' },
+  'mobile.tab.preview': { en: 'Preview', th: 'ดูผล' },
+  'mobile.tab.code': { en: 'Code', th: 'โค้ด' },
+  'mobile.tab.data': { en: 'Data', th: 'ข้อมูล' },
+  'mobile.tab.assets': { en: 'Pics', th: 'ภาพ' },
 } as const satisfies Record<string, Record<Lang, string>>;
 
 export type StringKey = keyof typeof STRINGS;
 
-export function translate(lang: Lang, key: StringKey): string {
-  return STRINGS[key][lang];
+export function translate(lang: Lang, key: StringKey, vars?: Record<string, string>): string {
+  let out: string = STRINGS[key][lang];
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{${k}}`, v);
+  }
+  return out;
 }
 
-export function useLang(): { lang: Lang; t: (key: StringKey) => string; setLang: (l: Lang) => void } {
+export function useLang(): {
+  lang: Lang;
+  t: (key: StringKey, vars?: Record<string, string>) => string;
+  setLang: (l: Lang) => void;
+} {
   const lang = useSyncExternalStore(subscribe, get, () => 'en' as Lang);
-  return { lang, t: (key) => translate(lang, key), setLang };
+  return { lang, t: (key, vars) => translate(lang, key, vars), setLang };
 }

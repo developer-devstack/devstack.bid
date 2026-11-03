@@ -1,9 +1,11 @@
 import { lazy, Suspense, useMemo } from "react";
 import { useDevstack, useRuntime } from "@/context/hooks";
+import { useLang } from "@/i18n";
 
 const MonacoEditor = lazy(() => import("./MonacoEditor"));
 
-export function EditorPanel() {
+export function EditorPanel({ mobile = false }: { mobile?: boolean }) {
+  const { t } = useLang();
   const rt = useRuntime();
   const files = useDevstack((s) => s.files);
   const binaryFiles = useDevstack((s) => s.binaryFiles);
@@ -23,9 +25,9 @@ export function EditorPanel() {
       className="panel flex min-h-0 flex-1 overflow-hidden"
       data-testid="editor-panel"
     >
-      <nav className="flex w-48 shrink-0 flex-col border-r border-devstack-border">
+      <nav className={`flex shrink-0 flex-col border-r border-devstack-border ${mobile ? 'w-28' : 'w-48'}`}>
         <p className="panel-header px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-devstack-muted">
-          Files
+          {t('editor.files')}
         </p>
         <ul className="flex-1 overflow-y-auto py-1" data-testid="file-list">
           {paths.map((p) => (
@@ -34,7 +36,9 @@ export function EditorPanel() {
                 type="button"
                 data-path={p}
                 onClick={() => rt.setActiveFile(p)}
-                className={`block w-full truncate px-3 py-1 text-left font-mono text-[11px] ${
+                className={`block w-full truncate px-3 text-left font-mono ${
+                  mobile ? "min-h-10 py-2.5 text-xs" : "py-1 text-[11px]"
+                } ${
                   p === activeFile
                     ? "bg-devstack-secondary text-devstack-accent"
                     : "text-devstack-muted hover:text-white"
@@ -56,7 +60,7 @@ export function EditorPanel() {
             {activeFile}
           </span>
           <span className="text-[10px] text-devstack-muted">
-            edits reload the preview
+            {t('editor.reloadHint')}
           </span>
         </div>
         <div className="min-h-0 flex-1">
