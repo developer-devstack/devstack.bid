@@ -22,6 +22,7 @@ export class ProxyLLMProvider implements LLMProvider {
         maxTokens: opts.maxTokens,
         temperature: opts.temperature,
       }),
+      signal: opts.signal,
     });
     if (!res.ok) {
       let detail = '';

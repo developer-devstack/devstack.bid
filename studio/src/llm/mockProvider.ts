@@ -1,4 +1,4 @@
-import type { ChatMessage, LLMProvider } from './types';
+import type { ChatMessage, CompletionOptions, LLMProvider } from './types';
 
 /**
  * Deterministic offline provider. Only implements the orchestrator routing call;
@@ -8,7 +8,8 @@ export class MockLLMProvider implements LLMProvider {
   id = 'mock' as const;
   label = 'mock (offline)';
 
-  async complete(messages: ChatMessage[]): Promise<string> {
+  async complete(messages: ChatMessage[], opts: CompletionOptions = {}): Promise<string> {
+    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     const text = (lastUser?.content ?? '').toLowerCase();
     if (text.includes('todo')) {
