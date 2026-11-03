@@ -31,6 +31,16 @@ describe('ProxyLLMProvider', () => {
     const p = new ProxyLLMProvider('l', '/api/studio/llm/chat', fetchImpl as unknown as typeof fetch);
     await expect(p.complete([{ role: 'user', content: 'x' }])).rejects.toThrow('LLM proxy failed (502): Upstream LLM error');
   });
+
+  it('forwards AbortSignal to fetch', async () => {
+    const ac = new AbortController();
+    const fetchImpl = vi.fn(async (_u: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBe(ac.signal);
+      return new Response(JSON.stringify({ content: 'ok', model: 'm' }), { status: 200 });
+    });
+    const p = new ProxyLLMProvider('l', '/api/studio/llm/chat', fetchImpl as unknown as typeof fetch);
+    await expect(p.complete([{ role: 'user', content: 'x' }], { signal: ac.signal })).resolves.toBe('ok');
+  });
 });
 
 describe('resolveBackend', () => {

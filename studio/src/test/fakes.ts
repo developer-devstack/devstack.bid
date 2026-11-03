@@ -10,6 +10,7 @@ export class ScriptedLLM implements LLMProvider {
   constructor(private handlers: { route?: string[]; code?: string[]; db?: string[] }) {}
 
   async complete(messages: ChatMessage[], opts?: CompletionOptions): Promise<string> {
+    if (opts?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     this.calls.push({ messages, opts });
     const sys = messages[0]?.content ?? '';
     const key = sys.includes('Core Orchestrator') ? 'route' : sys.includes('CodeAgent') ? 'code' : 'db';

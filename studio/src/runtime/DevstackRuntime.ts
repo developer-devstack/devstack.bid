@@ -283,6 +283,33 @@ export class DevstackRuntime {
     }
   }
 
+  /** Abort the in-flight agent run (Stop button). */
+  stopGeneration(): void {
+    this.orchestrator.cancel();
+  }
+
+  /** Re-run the last user prompt (Regenerate), trimming trailing replies first. */
+  async regenerateLast(): Promise<void> {
+    if (this.orchestrator.isRunning()) this.orchestrator.cancel();
+    const msgs = this.store.getState().messages;
+    let lastUserIdx = -1;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i]?.role === 'user') {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx < 0) return;
+    const content = msgs[lastUserIdx]?.content;
+    if (!content) return;
+    this.store.setState({ messages: msgs.slice(0, lastUserIdx) });
+    // Wait briefly for an in-flight cancel to clear `running` before starting again.
+    for (let i = 0; i < 40 && this.orchestrator.isRunning(); i++) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    await this.sendPrompt(content);
+  }
+
   async importMarkdown(name: string, text: string): Promise<void> {
     const n = await this.orchestrator.importMarkdown(name, text);
     this.pushMessage('system', `Imported “${name}” (${text.length} chars) into the knowledge vault — ${n} chunks embedded in pgvector.`);

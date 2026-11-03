@@ -5,6 +5,7 @@ import { assetFilename } from '@/image/dataUrl';
 import type { ImageGenerator } from '@/image/types';
 import { MockLLMProvider } from '@/llm/mockProvider';
 import type { ChatMessage, LLMProvider } from '@/llm/types';
+import { withAbortSignal } from '@/llm/types';
 import type { SandboxFs } from '@/sandbox/types';
 import { runCodeAgent } from './codeAgent';
 import { appSchemaSql, runDbAgent } from './dbAgent';
@@ -25,6 +26,14 @@ export interface RunReport {
   plan: RoutePlan;
   lines: string[];
   errors: string[];
+  aborted?: boolean;
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (err instanceof Error && (err.name === 'AbortError' || /aborted|abort/i.test(err.message)))
+  );
 }
 
 /**
@@ -34,11 +43,17 @@ export interface RunReport {
 export class AgentOrchestrator {
   private vault: string[] = [];
   private running = false;
+  private abort: AbortController | null = null;
 
   constructor(private deps: OrchestratorDeps) {}
 
   isRunning(): boolean {
     return this.running;
+  }
+
+  /** Stop the in-flight run (aborts LLM fetch + skips remaining agents). */
+  cancel(): void {
+    this.abort?.abort();
   }
 
   async importMarkdown(name: string, doc: string): Promise<number> {
@@ -49,6 +64,10 @@ export class AgentOrchestrator {
     return db.addKnowledge(
       chunks.map((c, i) => ({ source: 'vault', label: `${name} #${i + 1}`, content: c })),
     );
+  }
+
+  private throwIfAborted(signal: AbortSignal): void {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   }
 
   private async systemPrompt(prompt: string): Promise<string> {
@@ -69,30 +88,35 @@ export class AgentOrchestrator {
     const { broker } = this.deps;
     if (this.running) throw new Error('A run is already in progress');
     this.running = true;
+    this.abort = new AbortController();
+    const signal = this.abort.signal;
     const lines: string[] = [];
     const errors: string[] = [];
+    let plan: RoutePlan = { targets: [], reason: '', summary: '' };
     try {
       await broker.emit('agent:message', { role: 'user', content: prompt });
       await broker.emit('agent:thinking', { active: true, agent: 'orchestrator' });
 
-      let llm = this.deps.getLlm();
+      let llm = withAbortSignal(this.deps.getLlm(), signal);
       const messages: ChatMessage[] = [
         { role: 'system', content: await this.systemPrompt(prompt) },
         { role: 'user', content: prompt },
       ];
       let raw: string;
       try {
-        raw = await llm.complete(messages, { json: true, maxTokens: 800 });
+        raw = await llm.complete(messages, { json: true, maxTokens: 800, signal });
       } catch (err) {
+        if (isAbortError(err) || signal.aborted) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         await broker.emit('agent:message', {
           role: 'system',
           content: `LLM unavailable (${msg}). Falling back to the offline mock provider for this run.`,
         });
-        llm = new MockLLMProvider();
-        raw = await llm.complete(messages);
+        llm = withAbortSignal(new MockLLMProvider(), signal);
+        raw = await llm.complete(messages, { signal });
       }
-      const plan = parseRoutePlan(raw, `Handle: ${prompt}`);
+      this.throwIfAborted(signal);
+      plan = parseRoutePlan(raw, `Handle: ${prompt}`);
       await broker.emit('agent:route', { targets: plan.targets, reason: plan.summary });
 
       const db = this.deps.getDb();
@@ -101,20 +125,24 @@ export class AgentOrchestrator {
       const willDesign = plan.targets.includes('design');
 
       let schemaSql = db ? await appSchemaSql(db).catch(() => '') : '';
+      this.throwIfAborted(signal);
       if (plan.targets.includes('db')) {
         if (!db) errors.push('DBAgent skipped: database not ready');
         else {
           try {
             const r = await runDbAgent(broker, db, llm, { intent: plan.dbIntent ?? prompt, userPrompt: prompt });
+            this.throwIfAborted(signal);
             schemaSql = r.schemaSql;
             lines.push(`DBAgent (${r.source}) → tables: ${r.tables.join(', ') || '—'}`);
             if (r.note) lines.push(`  ${r.note}`);
           } catch (err) {
+            if (isAbortError(err) || signal.aborted) throw err;
             errors.push(`DBAgent failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
 
+      this.throwIfAborted(signal);
       const tasks: Promise<void>[] = [];
       if (plan.targets.includes('code')) {
         tasks.push(
@@ -129,6 +157,7 @@ export class AgentOrchestrator {
               if (r.note) lines.push(`  ${r.note}`);
             })
             .catch((err: unknown) => {
+              if (isAbortError(err) || signal.aborted) throw err;
               errors.push(`CodeAgent failed: ${err instanceof Error ? err.message : String(err)}`);
             }),
         );
@@ -144,11 +173,13 @@ export class AgentOrchestrator {
               if (img.fallbackReason) lines.push(`  image provider failed, used placeholder: ${img.fallbackReason}`);
             })
             .catch((err: unknown) => {
+              if (isAbortError(err) || signal.aborted) throw err;
               errors.push(`DesignAgent failed: ${err instanceof Error ? err.message : String(err)}`);
             }),
         );
       }
       await Promise.all(tasks);
+      this.throwIfAborted(signal);
 
       const body = [...lines.map((l) => (l.startsWith('  ') ? l : `• ${l}`)), ...errors.map((e) => `✗ ${e}`)];
       await broker.emit('agent:message', {
@@ -156,8 +187,18 @@ export class AgentOrchestrator {
         content: body.length ? `${plan.summary}\n\n${body.join('\n')}` : plan.summary,
       });
       return { plan, lines, errors };
+    } catch (err) {
+      if (isAbortError(err) || signal.aborted) {
+        await broker.emit('agent:message', {
+          role: 'system',
+          content: 'Stopped. You can edit your prompt and try again, or regenerate the last request.',
+        });
+        return { plan, lines, errors, aborted: true };
+      }
+      throw err;
     } finally {
       this.running = false;
+      this.abort = null;
       await broker.emit('agent:thinking', { active: false });
     }
   }

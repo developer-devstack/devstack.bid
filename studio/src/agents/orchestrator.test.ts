@@ -97,4 +97,30 @@ describe('AgentOrchestrator', () => {
     await expect(orch.handleUserPrompt('again')).rejects.toThrow(/in progress/);
     await first;
   });
+
+  it('cancels an in-flight run when cancel() is called', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const llm: LLMProvider = {
+      id: 'proxy',
+      label: 'slow',
+      async complete() {
+        await gate;
+        return JSON.stringify({ routes: ['code'], summary: 'late' });
+      },
+    };
+    const { orch, messages } = setup(llm, db);
+    const run = orch.handleUserPrompt('slow build');
+    // Let the orchestrator mark itself running and reach the LLM call.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(orch.isRunning()).toBe(true);
+    orch.cancel();
+    release();
+    const report = await run;
+    expect(report.aborted).toBe(true);
+    expect(messages.some((m) => m.role === 'system' && /Stopped/i.test(m.content))).toBe(true);
+    expect(orch.isRunning()).toBe(false);
+  });
 });
