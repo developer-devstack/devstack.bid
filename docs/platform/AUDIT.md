@@ -28,7 +28,7 @@ No push, deploy, remote migration, DNS or production change was made.
 - **Log sanitizer** — `deploy/sanitize.ts` redacts known secrets + token patterns, strips control chars, 4000-char cap.
 - **Audit** — `audit_events` table + `connections/audit.ts`, events `deploy.started|live|failed`, `credential.saved`.
 - **Limits** — `src/lib/limits/capacity.ts`: capacity-derived `deploysPerDay`, `maxFixAttempts`, `maxFiles` (≤200), `maxBundleBytes`.
-- **UI** — `/projects`, `/projects/[id]` (`components/projects/*`: list, detail, direct-deploy, upload-zip, deploy-button panels, `deploy/deploy-status.tsx`), `/settings/connections|environment|cli|mcp`, `/builder`, `/factory`, `/studio` (separate Vite app under `studio/`). These stay untouched unless in scope.
+- **UI** — `/projects`, `/projects/[id]` (`components/projects/*`: create/upload, project history in `header` + `project-history-panel`, detail, direct-deploy, upload-zip, deploy-button panels, `deploy/deploy-status.tsx`), `/settings/connections|environment|cli|mcp`, `/builder`, `/factory`, `/studio` (separate Vite app under `studio/`). These stay untouched unless in scope.
 
 ## 3. Feature matrix (spec t357u)
 

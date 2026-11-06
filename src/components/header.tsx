@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AppWindow, Blocks, FolderPlus, BookOpen, Bot, House, Languages, Layers, LayoutGrid, Menu, FlaskConical, MessagesSquare, Moon, Palette, SquareTerminal, Sun } from "lucide-react";
 import { Button, buttonClasses, cn, Dialog, DialogContent, DialogTrigger, SearchIcon, Tooltip } from "@/components/ui";
 import { AccountButton } from "./account-button";
+import { ProjectHistoryPanel } from "./projects/project-history-panel";
 import { SetupCursor } from "./setup-cursor";
 import { CommandPalette, PaletteTrigger } from "./command-palette";
 import { Mascot } from "./brand/mascot";
@@ -103,6 +104,12 @@ export function Header() {
           })}
         </nav>
 
+        <div className="ml-4 hidden min-h-0 min-w-0 flex-1 items-center justify-end xl:flex" aria-label={t("nav.projectHistory")}>
+          <div className="w-full max-w-[17rem]">
+            <ProjectHistoryPanel variant="inline" />
+          </div>
+        </div>
+
         <div className="ml-auto flex items-center gap-1.5">
           <PaletteTrigger onClick={() => setPaletteOpen(true)} />
           <AccountButton next={pathname} />
@@ -135,7 +142,7 @@ export function Header() {
                 <Menu className="h-5 w-5" aria-hidden />
               </Button>
             </DialogTrigger>
-            <DialogContent side="right" title={t("nav.mainMenu")} closeLabel={t("nav.close")}>
+            <DialogContent side="right" title={t("nav.mainMenu")} closeLabel={t("nav.close")} className="max-h-[100dvh] overflow-y-auto">
               <div className="mb-4 space-y-2">
                 <AccountButton next={pathname} full onNavigate={() => setMenuOpen(false)} />
                 <Link href="/new" onClick={() => setMenuOpen(false)} className={buttonClasses("primary", "md", "w-full")}>
@@ -150,6 +157,9 @@ export function Header() {
                     {dark ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />} {t("toggle.theme")}
                   </Button>
                 </div>
+              </div>
+              <div className="mb-4 xl:hidden">
+                <ProjectHistoryPanel onNavigate={() => setMenuOpen(false)} />
               </div>
               <nav aria-label="Mobile">
                 <ul className="space-y-1">

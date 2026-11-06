@@ -23,9 +23,8 @@ describe("/new entry points", () => {
     expect(h.match(/<Link href="\/new" onClick=\{\(\) => setMenuOpen\(false\)\}/g)).toHaveLength(1);
   });
 
-  it("/projects has a header button and an empty-state button to /new", () => {
-    const p = src("src/components/projects/projects-list.tsx");
+  it("/projects has a primary link to /new", () => {
+    const p = src("src/components/projects/projects-create.tsx");
     expect(p).toMatch(/href="\/new" data-testid="projects-new"/);
-    expect(p).toMatch(/href="\/new" data-testid="projects-empty-new"/);
   });
 });

@@ -310,10 +310,12 @@ export function ChatApp({
   // URL / parent shell can preselect a user model (e.g. /chat?mode=code).
   useEffect(() => {
     if (dev || !initialMode || initialMode === "agent" || initialMode === "gateway" || initialMode === "image") return;
-    setModeState(initialMode);
-    try {
-      localStorage.setItem(MODE_STORE, initialMode);
-    } catch {}
+    queueMicrotask(() => {
+      setModeState(initialMode);
+      try {
+        localStorage.setItem(MODE_STORE, initialMode);
+      } catch {}
+    });
   }, [dev, initialMode]);
 
 
