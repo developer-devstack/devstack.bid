@@ -92,14 +92,24 @@ export const GUARD_MODULE = `import * as user from "./worker.js";
 export * from "./worker.js";
 const h = user.default;
 function same(a, b) { if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; }
+const err500 = () =>
+  new Response(
+    "<!doctype html><meta charset=utf-8><title>Service error</title><p>The app Worker threw an error. Try redeploying or check DevStack build logs.</p>",
+    { status: 500, headers: { "content-type": "text/html; charset=utf-8", "x-devstack-origin": "guard", "cache-control": "no-store" } },
+  );
 export default {
   async fetch(req, env, ctx) {
     const { DEVSTACK_PROXY_KEY: key, ...rest } = env || {};
     if (!key || !same(req.headers.get("x-devstack-proxy"), key)) return new Response("Not found", { status: 404, headers: { "x-devstack-origin": "guard", "cache-control": "no-store" } });
     const hs = new Headers(req.headers); hs.delete("x-devstack-proxy");
-    const r = await h.fetch(new Request(req, { headers: hs }), rest, ctx);
-    if (!r || r.status === 101 || r.webSocket) return r;
-    const out = new Response(r.body, r); out.headers.set("x-devstack-origin", "project"); return out;
+    try {
+      const r = await h.fetch(new Request(req, { headers: hs }), rest, ctx);
+      if (!r || r.status === 101 || r.webSocket) return r;
+      const out = new Response(r.body, r); out.headers.set("x-devstack-origin", "project"); return out;
+    } catch (e) {
+      console.error("[devstack-guard] user Worker fetch failed", e && e.stack ? e.stack : e);
+      return err500();
+    }
   },
 };
 `;

@@ -9,11 +9,15 @@ let mod: {
   nextSatisfiesOpenNext(raw: string): boolean;
   targetNextForOpenNext(raw: string): string;
   ensureNextForOpenNext(d: string, pm: string | null): { from: string; to: string; bumped: { name: string; from: string; to: string }[]; installCmd: string } | null;
+  ensureOpenNextForNext164(d: string, pm: string | null, emit?: (m: { t: string; phase: string; chunk: string }) => void): { from: string; to: string; section: string; installCmd: string } | null;
+  openNextNeedsPreviewPropsBump(declared: string): boolean;
+  assertPreviewPropsBundled(d: string, emit?: (m: { t: string; phase: string; chunk: string }) => void): { ok: boolean; message?: string } | null;
   sanitizeVercelOtel(d: string, emit?: (m: { t: string; phase: string; chunk: string }) => void): { notes: string[] } | null;
   isEresolveLog(log: string): boolean;
   withLegacyPeerDeps(install: string): string | null;
   OPENNEXT_NEXT_MIN_15: string;
   OPENNEXT_NEXT_MIN_16: string;
+  OPENNEXT_MIN_PREVIEW_PROPS: string;
   VERCEL_OTEL_MIN: string;
   BUILD_CMD_TIMEOUT_MS: number;
   INSTALL_CMD_TIMEOUT_MS: number;
@@ -52,9 +56,9 @@ describe("auto Cloudflare config for plain Next.js repos", () => {
   });
   it("installs the adapter only when it's missing, with the repo's package manager and a shell-safe command", () => {
     const d = repo({ dependencies: { next: "15.5.30" } });
-    expect(mod.openNextInstallCmd(d, "npm")).toBe("npm install --no-save @opennextjs/cloudflare@1");
-    expect(mod.openNextInstallCmd(d, "pnpm")).toBe("pnpm add -D @opennextjs/cloudflare@1");
-    for (const pm of ["npm", "pnpm", "yarn", "bun", null]) expect(mod.openNextInstallCmd(d, pm)).toMatch(/^[\w@%+=:,./ -]{1,300}$/);
+    expect(mod.openNextInstallCmd(d, "npm")).toBe("npm install --no-save @opennextjs/cloudflare@^1.20.16");
+    expect(mod.openNextInstallCmd(d, "pnpm")).toBe("pnpm add -D @opennextjs/cloudflare@^1.20.16");
+    for (const pm of ["npm", "pnpm", "yarn", "bun", null]) expect(mod.openNextInstallCmd(d, pm)).toMatch(/^[\w@%+=^:,./ -]{1,300}$/);
     mkdirSync(join(d, "node_modules", "@opennextjs", "cloudflare"), { recursive: true });
     writeFileSync(join(d, "node_modules", "@opennextjs", "cloudflare", "package.json"), "{}");
     expect(mod.openNextInstallCmd(d, "npm")).toBeNull();
@@ -66,12 +70,14 @@ describe("OpenNext next peer auto-bump (build workspace only)", () => {
     expect(mod.nextSatisfiesOpenNext("15.5.28")).toBe(true);
     expect(mod.nextSatisfiesOpenNext("^15.5.30")).toBe(true);
     expect(mod.nextSatisfiesOpenNext("15.5.27")).toBe(false);
-    expect(mod.nextSatisfiesOpenNext("16.4.1")).toBe(true);
-    expect(mod.nextSatisfiesOpenNext("16.4.3")).toBe(true);
+    expect(mod.nextSatisfiesOpenNext("16.4.1")).toBe(false);
+    expect(mod.nextSatisfiesOpenNext("16.4.4")).toBe(false);
+    expect(mod.nextSatisfiesOpenNext("16.4.5")).toBe(true);
+    expect(mod.nextSatisfiesOpenNext("16.4.3")).toBe(false);
     expect(mod.nextSatisfiesOpenNext("16.2.4")).toBe(false);
     expect(mod.nextSatisfiesOpenNext("14.2.5")).toBe(false);
   });
-  it("targets 15.5.28 for 15.x and 16.4.3 for 16.x / unknown", () => {
+  it("targets 15.5.28 for 15.x and 16.4.5 for 16.x / unknown", () => {
     expect(mod.targetNextForOpenNext("15.1.0")).toBe(mod.OPENNEXT_NEXT_MIN_15);
     expect(mod.targetNextForOpenNext("16.2.4")).toBe(mod.OPENNEXT_NEXT_MIN_16);
     expect(mod.targetNextForOpenNext("^16.0.0")).toBe(mod.OPENNEXT_NEXT_MIN_16);
@@ -84,20 +90,20 @@ describe("OpenNext next peer auto-bump (build workspace only)", () => {
     const r = mod.ensureNextForOpenNext(d, "npm");
     expect(r).not.toBeNull();
     expect(r!.from).toBe("16.2.4");
-    expect(r!.to).toBe("16.4.3");
+    expect(r!.to).toBe("16.4.5");
     expect(r!.bumped.map((b) => b.name).sort()).toEqual(["eslint-config-next", "next"]);
-    expect(r!.installCmd).toBe("npm install next@16.4.3 eslint-config-next@16.4.3 react@19.2.4 react-dom@19.2.4");
+    expect(r!.installCmd).toBe("npm install next@16.4.5 eslint-config-next@16.4.5 react@19.2.4 react-dom@19.2.4");
     expect(r!.installCmd).not.toMatch(/--force/);
-    expect(r!.installCmd).toMatch(/^[\w@%+=:,./ -]{1,300}$/);
+    expect(r!.installCmd).toMatch(/^[\w@%+=^:,./ -]{1,300}$/);
     const pkg = JSON.parse(readFileSync(join(d, "package.json"), "utf8"));
-    expect(pkg.dependencies.next).toBe("16.4.3");
-    expect(pkg.devDependencies["eslint-config-next"]).toBe("16.4.3");
+    expect(pkg.dependencies.next).toBe("16.4.5");
+    expect(pkg.devDependencies["eslint-config-next"]).toBe("16.4.5");
     expect(pkg.dependencies.react).toBe("19.2.4");
   });
   it("is a no-op when next already satisfies the peer", () => {
-    const d = repo({ dependencies: { next: "16.4.2", react: "19.3.1" } });
+    const d = repo({ dependencies: { next: "16.4.5", react: "19.3.1" } });
     expect(mod.ensureNextForOpenNext(d, "npm")).toBeNull();
-    expect(JSON.parse(readFileSync(join(d, "package.json"), "utf8")).dependencies.next).toBe("16.4.2");
+    expect(JSON.parse(readFileSync(join(d, "package.json"), "utf8")).dependencies.next).toBe("16.4.5");
   });
   it("uses pnpm/yarn/bun add forms without --force", () => {
     for (const [pm, prefix] of [["pnpm", "pnpm add"], ["yarn", "yarn add"], ["bun", "bun add"]] as const) {
@@ -108,6 +114,42 @@ describe("OpenNext next peer auto-bump (build workspace only)", () => {
       expect(r!.installCmd).toContain("next@15.5.28");
       expect(r!.installCmd).not.toMatch(/--force/);
     }
+  });
+});
+
+describe("OpenNext preview-props bump (Next 16.4 + adapter < 1.20.12)", () => {
+  it("detects adapters that need a bump", () => {
+    expect(mod.openNextNeedsPreviewPropsBump("1.20.10")).toBe(true);
+    expect(mod.openNextNeedsPreviewPropsBump("1.20.12")).toBe(false);
+    expect(mod.openNextNeedsPreviewPropsBump("^1.20.16")).toBe(false);
+  });
+  it("pins 1.20.16 when next is 16.4.5+ and bumps 1.20.10", () => {
+    const d = repo({
+      dependencies: { next: "16.4.5", react: "19.3.1", "react-dom": "19.3.1" },
+      devDependencies: { "@opennextjs/cloudflare": "1.20.10", wrangler: "4.149.0" },
+    });
+    const r = mod.ensureOpenNextForNext164(d, "npm");
+    expect(r!.to).toBe("1.20.16");
+    expect(r!.installCmd).toContain("@opennextjs/cloudflare@1.20.16");
+    expect(JSON.parse(readFileSync(join(d, "package.json"), "utf8")).devDependencies["@opennextjs/cloudflare"]).toBe("1.20.16");
+  });
+  it("pins 1.20.15 when next is 16.4.1–16.4.4", () => {
+    const d = repo({
+      dependencies: { next: "16.4.3", react: "19.3.1", "react-dom": "19.3.1" },
+      devDependencies: { "@opennextjs/cloudflare": "1.20.10", wrangler: "4.149.0" },
+    });
+    const r = mod.ensureOpenNextForNext164(d, "npm");
+    expect(r!.to).toBe("1.20.15");
+  });
+  it("assertPreviewPropsBundled fails when handler omits preview-props", () => {
+    const d = mkdtempSync(join(tmpdir(), "onx-"));
+    mkdirSync(join(d, ".next", "server"), { recursive: true });
+    mkdirSync(join(d, ".open-next", "server-functions", "default"), { recursive: true });
+    writeFileSync(join(d, ".next", "server", "preview-props.json"), "{}");
+    writeFileSync(join(d, ".open-next", "server-functions", "default", "handler.mjs"), "// no");
+    const x = mod.assertPreviewPropsBundled(d);
+    expect(x?.ok).toBe(false);
+    expect(x?.message).toMatch(/preview-props/);
   });
 });
 
