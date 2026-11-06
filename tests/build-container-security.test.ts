@@ -28,7 +28,8 @@ describe("build container credential hygiene", () => {
     const after = readFileSync(cfg, "utf8");
     expect(after).not.toContain(TOKEN);
     expect(after).not.toMatch(/extraheader|helper/i);
-    expect(execFileSync("git", ["-C", src, "remote", "get-url", "origin"]).toString().trim()).toBe("https://github.com/o/r.git");
+    // Prefer the rewritten file: some Git versions mask tokens in `remote get-url` output as [REDACTED].
+    expect(after).toMatch(/\burl\s*=\s*https:\/\/github\.com\/o\/r\.git\b/);
     // Simulated postinstall: dump env + every git config value it can see.
     mkdirSync(join(src, "x"), { recursive: true });
     const seen = execFileSync("sh", ["-c", "env; git config --list --show-origin"], { cwd: src, env: { PATH: process.env.PATH ?? "" } as unknown as NodeJS.ProcessEnv }).toString();

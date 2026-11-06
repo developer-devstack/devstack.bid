@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Projects navigation:** project list from `GET /api/projects` is shown under **ประวัติโปรเจ็ก / Project history** in the main menu sheet (mobile) and in the top bar (wide desktop). The `/projects` page focuses on new project, zip upload, and create-repo; the same history panel appears in a sticky column on that page.
+- **ESLint / tests:** `ProjectHistoryPanel` avoids sync setState at effect start; chat mode URL sync defers `setState` with `queueMicrotask`; container security test asserts scrubbed `.git/config` (Git 2.4+ may redact tokens in `remote get-url` output).
+
 ## [0.13.0-rc.7] - 2026-11-04
 
 ### Fixed
