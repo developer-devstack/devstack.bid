@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Projects navigation:** project list from `GET /api/projects` is shown under **ประวัติโปรเจ็ก / Project history** in the main menu sheet (mobile) and in the top bar (wide desktop). The `/projects` page focuses on new project, zip upload, and create-repo; the same history panel appears in a sticky column on that page.
 - **ESLint / tests:** `ProjectHistoryPanel` avoids sync setState at effect start; chat mode URL sync defers `setState` with `queueMicrotask`; container security test asserts scrubbed `.git/config` (Git 2.4+ may redact tokens in `remote get-url` output).
 
+## [0.13.0-rc.8] - 2026-11-06
+
+### Changed
+- **Build container (OpenNext):** auto-bump `@opennextjs/cloudflare` to **≥1.20.12** when a project uses **Next 16.4.x** with an older adapter (missing `preview-props.json` in the bundle → runtime `Unexpected loadManifest(...preview-props.json)` / 502). Pins **1.20.16** with next **≥16.4.5**, **1.20.15** with next **16.4.1–16.4.4**; fresh adapter installs use `@opennextjs/cloudflare@^1.20.16`. After `opennextjs-cloudflare` build, fail when `.next/server/preview-props.json` exists but the server handler omits `preview-props`. After `wrangler deploy --dry-run`, run **wrangler dev --local** and **GET /** (timeout) — fail on 5xx or no response.
+- **WfP guard:** catch errors from the user Worker `fetch`, `console.error` the stack, return HTML **500** with a short message instead of propagating an exception.
+- **First-party Next templates** (`nextjs-dashboard`, `nextjs-ai-chat`, `collab-workspace`): pin **next 16.4.5** and **@opennextjs/cloudflare 1.20.16**; regenerate lockfiles; embed via `template-projects.generated.ts`.
+
 ## [0.13.0-rc.7] - 2026-11-04
 
 ### Fixed

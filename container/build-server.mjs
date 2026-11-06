@@ -11,7 +11,7 @@ const SRC = join(WORK, "src");
 const HOME_DIR = join(WORK, ".home");
 let state = { running: false, done: false, output: null, child: null, canceled: false };
 
-const SAFE_CMD = /^[\w@%+=:,./ -]{1,300}$/; // no shell metacharacters ; | & $ ` > < ( ) \ " '
+const SAFE_CMD = /^[\w@%+=^:,./ -]{1,300}$/; // no shell metacharacters ; | & $ ` > < ( ) \ " '
 const REPO = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9_.-]{1,100}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const REL = /^(?!\/)(?!.*\.\.)[A-Za-z0-9._\/-]{0,200}$/;
@@ -164,7 +164,12 @@ export function scrubCheckout(src, repo) {
 }
 
 
-const OPENNEXT_PKG = "@opennextjs/cloudflare@1";
+/** Fresh installs when the adapter is missing: resolve to latest 1.20.x that bundles preview-props (>=1.20.12; 1.20.16+ expects next >=16.4.5). */
+const OPENNEXT_PKG = "@opennextjs/cloudflare@^1.20.16";
+/** @opennextjs/cloudflare below this version does not bundle `.next/server/preview-props.json` — Next 16.4 loadManifest fails at runtime (502). */
+export const OPENNEXT_MIN_PREVIEW_PROPS = "1.20.12";
+export const OPENNEXT_PIN_16_4_5 = "1.20.16";
+export const OPENNEXT_PIN_16_4_1_4 = "1.20.15";
 const OPENNEXT_CONFIG = `import { defineCloudflareConfig } from "@opennextjs/cloudflare";\n\n// Added by DevStack at build time (repo had no open-next.config.ts).\nexport default defineCloudflareConfig();\n`;
 const anyOf = (dir, names) => names.some((n) => existsSync(join(dir, n)));
 
@@ -217,9 +222,9 @@ export function openNextInstallCmd(dir, pm) {
   return `npm install --no-save ${OPENNEXT_PKG}`;
 }
 
-/** Patched floors matching @opennextjs/cloudflare peer: >=15.5.28 <16 || >=16.4.1 (also covers known Next advisories). */
+/** Patched floors matching @opennextjs/cloudflare peer: >=15.5.28 <16 || >=16.4.1 (also covers known Next advisories). 16.x floor at 16.4.5 matches @opennextjs/cloudflare 1.20.16+ peer. */
 export const OPENNEXT_NEXT_MIN_15 = "15.5.28";
-export const OPENNEXT_NEXT_MIN_16 = "16.4.3";
+export const OPENNEXT_NEXT_MIN_16 = "16.4.5";
 
 /** Strip npm range prefixes and return [major,minor,patch] or null. */
 export function parseSemver(raw) {
@@ -238,7 +243,7 @@ export function nextSatisfiesOpenNext(raw) {
   const v = parseSemver(raw);
   if (!v) return false;
   if (v[0] === 15) return cmpSemver(v, parseSemver(OPENNEXT_NEXT_MIN_15)) >= 0;
-  if (v[0] === 16) return cmpSemver(v, parseSemver("16.4.1")) >= 0;
+  if (v[0] === 16) return cmpSemver(v, parseSemver(OPENNEXT_NEXT_MIN_16)) >= 0;
   return v[0] > 16;
 }
 
@@ -322,6 +327,154 @@ export function ensureNextForOpenNext(dir, pm) {
     installCmd = pm === "pnpm" ? `pnpm add next@${to}` : pm === "yarn" ? `yarn add next@${to}` : pm === "bun" ? `bun add next@${to}` : `npm install next@${to}`;
   }
   return { from, to, bumped, installCmd };
+}
+
+/** Read declared @opennextjs/cloudflare version from package.json, or null. */
+export function readOpenNextDeclaredVersion(pkg) {
+  if (!pkg || typeof pkg !== "object") return null;
+  for (const section of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    const bag = pkg[section];
+    if (!bag || bag["@opennextjs/cloudflare"] == null) continue;
+    return String(bag["@opennextjs/cloudflare"]);
+  }
+  return null;
+}
+
+/** True when declared range resolves below OPENNEXT_MIN_PREVIEW_PROPS (e.g. 1.20.10). */
+export function openNextNeedsPreviewPropsBump(declared) {
+  if (typeof declared !== "string") return false;
+  const v = parseSemver(declared);
+  if (!v) return false;
+  return cmpSemver(v, parseSemver(OPENNEXT_MIN_PREVIEW_PROPS)) < 0;
+}
+
+/**
+ * Build workspace only: Next 16.4.x + @opennextjs/cloudflare < 1.20.12 → bump adapter so `preview-props.json` is bundled
+ * (Next 16.4 loadManifest at Worker startup). next >= 16.4.5 → 1.20.16; 16.4.1–16.4.4 → 1.20.15.
+ * Null when not applicable or already new enough.
+ */
+export function ensureOpenNextForNext164(dir, pm, emit) {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync(pkgPath)) return null;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(pkgPath, "utf8")); } catch { return null; }
+  const deps = pkg.dependencies || {};
+  const dev = pkg.devDependencies || {};
+  const whereNext = deps.next != null ? "dependencies" : (dev.next != null ? "devDependencies" : null);
+  if (!whereNext) return null;
+  const nextRaw = String(pkg[whereNext].next);
+  const nv = parseSemver(nextRaw);
+  if (!nv || nv[0] !== 16 || nv[1] !== 4) return null;
+  const whereOnx = deps["@opennextjs/cloudflare"] != null
+    ? "dependencies"
+    : (dev["@opennextjs/cloudflare"] != null ? "devDependencies" : null);
+  if (!whereOnx) return null;
+  const onxFrom = String(pkg[whereOnx]["@opennextjs/cloudflare"]);
+  if (!openNextNeedsPreviewPropsBump(onxFrom)) return null;
+  const to = nv[2] >= 5 ? OPENNEXT_PIN_16_4_5 : OPENNEXT_PIN_16_4_1_4;
+  pkg[whereOnx]["@opennextjs/cloudflare"] = to;
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+  if (emit) {
+    emit({
+      t: "log",
+      phase: "installing",
+      chunk: `@opennextjs/cloudflare ${onxFrom} ไม่รวม preview-props สำหรับ Next 16.4 — ปรับใน workspace นี้เป็น ${to} (จับคู่ next ${nextRaw})\n`,
+    });
+  }
+  const spec = `@opennextjs/cloudflare@${to}`;
+  let installCmd;
+  if (pm === "pnpm") installCmd = `pnpm add -D ${spec}`;
+  else if (pm === "yarn") installCmd = `yarn add -D ${spec}`;
+  else if (pm === "bun") installCmd = `bun add -d ${spec}`;
+  else installCmd = `npm install --no-save ${spec}`;
+  if (!SAFE_CMD.test(installCmd)) installCmd = `npm install --no-save ${spec}`;
+  return { from: onxFrom, to, section: whereOnx, installCmd };
+}
+
+/** Installed @opennextjs/cloudflare version from node_modules, or null. */
+export function readInstalledOpenNextVersion(dir) {
+  const p = join(dir, "node_modules", "@opennextjs", "cloudflare", "package.json");
+  if (!existsSync(p)) return null;
+  try {
+    const j = JSON.parse(readFileSync(p, "utf8"));
+    return typeof j.version === "string" ? j.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * After OpenNext build: `.next/server/preview-props.json` must be inlined into the server bundle.
+ * If the file exists on disk but handler.mjs does not reference preview-props, the Worker will 502 — fail the build.
+ */
+export function assertPreviewPropsBundled(dir, emit) {
+  const nextManifest = join(dir, ".next", "server", "preview-props.json");
+  const handler = join(dir, ".open-next", "server-functions", "default", "handler.mjs");
+  if (!existsSync(nextManifest)) return null;
+  let h = "";
+  try { h = readFileSync(handler, "utf8"); } catch {
+    if (emit) emit({ t: "log", phase: "building", chunk: `[opennext] missing handler at ${handler}\n` });
+    return { ok: false, message: "OpenNext output missing server-functions/default/handler.mjs after build" };
+  }
+  if (!h.includes("preview-props")) {
+    const msg = "Next.js wrote .next/server/preview-props.json but the OpenNext bundle does not inline it (upgrade @opennextjs/cloudflare to >=1.20.12, or next 16.4.5+ with 1.20.16). Every request would fail with Unexpected loadManifest(...preview-props.json).";
+    if (emit) emit({ t: "log", phase: "building", chunk: `[opennext] ${msg}\n` });
+    return { ok: false, message: msg };
+  }
+  return { ok: true };
+}
+
+/** Local GET smoke test after wrangler bundle: fail on 5xx or timeout. */
+export const SMOKE_LOCAL_MS = Number(process.env.SMOKE_LOCAL_MS) || 45_000;
+
+async function smokeTestBundledWorker(dir, emit) {
+  const local = join(dir, "node_modules", ".bin", "wrangler");
+  const [cmd, baseArgs] = existsSync(local) ? [local, []] : ["npx", ["--yes", "wrangler@4"]];
+  const port = 8790 + Math.floor(Math.random() * 200);
+  const cfg = join(WORK, "server-wrangler.json");
+  const child = spawn(cmd, [...baseArgs, "dev", "--local", "--port", String(port), "--config", cfg], {
+    cwd: dir,
+    env: { ...process.env, WRANGLER_SEND_METRICS: "false" },
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const logs = [];
+  const cap = (s) => logs.push(s.toString("utf8").slice(0, 500));
+  child.stdout?.on("data", cap);
+  child.stderr?.on("data", cap);
+  try {
+    child.unref?.();
+  } catch {}
+  const deadline = Date.now() + SMOKE_LOCAL_MS;
+  let status = 0;
+  let bodySnippet = "";
+  while (Date.now() < deadline) {
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 5_000);
+      const r = await fetch(`http://127.0.0.1:${port}/`, { signal: ac.signal });
+      clearTimeout(t);
+      status = r.status;
+      bodySnippet = (await r.text()).slice(0, 200);
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  try { killProcessTree(child, "SIGTERM"); } catch {}
+  setTimeout(() => { try { killProcessTree(child, "SIGKILL"); } catch {} }, 3_000).unref();
+  if (status >= 500) {
+    const msg = `local wrangler dev smoke: GET / returned ${status} — ${bodySnippet.replace(/\s+/g, " ").slice(0, 120)}`;
+    if (emit) emit({ t: "log", phase: "building", chunk: `${msg}\n` });
+    return { ok: false, message: msg };
+  }
+  if (status === 0) {
+    const msg = `local wrangler dev smoke: no HTTP response within ${SMOKE_LOCAL_MS}ms (check worker startup; logs: ${logs.join("").slice(0, 400)})`;
+    if (emit) emit({ t: "log", phase: "building", chunk: `${msg}\n` });
+    return { ok: false, message: msg };
+  }
+  if (emit) emit({ t: "log", phase: "building", chunk: `local wrangler dev smoke: GET / ${status} ok\n` });
+  return { ok: true };
 }
 
 
@@ -453,17 +606,19 @@ async function build(spec, emit) {
   // Rewrite next in package.json BEFORE install so npm ci / peer resolution does not ERESOLVE
   // when the repo already depends on @opennextjs/cloudflare with an out-of-range next.
   let nextBump = null;
+  let openNextBump = null;
   if (wantsOpenNext) {
     nextBump = ensureNextForOpenNext(dir, detected.pm);
     if (nextBump) {
       const list = nextBump.bumped.map((b) => `${b.name} ${b.from} → ${b.to}`).join(", ");
       emit({ t: "log", phase: "installing", chunk: `next ${nextBump.from} is below @opennextjs/cloudflare's peer (needs >=15.5.28 on 15.x or >=16.4.1). Auto-bumping in the build workspace only: ${list}.\n` });
     }
+    openNextBump = ensureOpenNextForNext164(dir, detected.pm, emit);
   }
   const otelFix = sanitizeVercelOtel(dir, emit);
   let install = spec.install || detected.install;
   // package.json next / otel changed → lockfile no longer matches npm ci; use npm install for this workspace.
-  if ((nextBump || otelFix) && install && /\bnpm\s+ci\b/.test(install)) {
+  if ((nextBump || otelFix || openNextBump) && install && /\bnpm\s+ci\b/.test(install)) {
     install = "npm install";
     emit({ t: "log", phase: "installing", chunk: `Using npm install (not npm ci) after package.json peer fix so the lockfile can resolve.\n` });
   }
@@ -499,6 +654,18 @@ async function build(spec, emit) {
     if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
     if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump next to ${nextBump.to} for OpenNext (exit ${r.code}); upgrade next in package.json to >=15.5.28 (15.x) or >=16.4.1` };
   }
+  if (openNextBump) {
+    const installed = readInstalledOpenNextVersion(dir);
+    const need = parseSemver(openNextBump.to);
+    if (!installed || !need || cmpSemver(parseSemver(installed), need) < 0) {
+      emit({ t: "log", phase: "installing", chunk: `$ ${openNextBump.installCmd}\n` });
+      const a = argv(openNextBump.installCmd);
+      const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", emit);
+      if (state.canceled) return { ok: false, code: "canceled" };
+      if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
+      if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not bump @opennextjs/cloudflare to ${openNextBump.to} for Next 16.4 preview-props (exit ${r.code})` };
+    }
+  }
   const adapter = wantsOpenNext ? openNextInstallCmd(dir, detected.pm) : null;
   if (adapter) {
     emit({ t: "log", phase: "installing", chunk: `@opennextjs/cloudflare is not a dependency; installing it for this build.\n$ ${adapter}\n` });
@@ -506,7 +673,7 @@ async function build(spec, emit) {
     const r = await run(a[0], a.slice(1), { cwd: dir, env: { ...env, NODE_ENV: "development" }, timeoutMs: INSTALL_CMD_TIMEOUT_MS }, "installing", emit);
     if (state.canceled) return { ok: false, code: "canceled" };
     if (r.timedOut) return { ok: false, code: "timed_out", message: `หมดเวลาติดตั้ง (${Math.round(INSTALL_CMD_TIMEOUT_MS / 60_000)} นาที) — ไม่นับโควต้าวัน` };
-    if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not add @opennextjs/cloudflare (exit ${r.code}); it needs next >=15.5.28 (15.x) or >=16.4.1, so upgrade next in package.json` };
+    if (r.code !== 0) return { ok: false, code: "install_failed", message: `could not add @opennextjs/cloudflare (exit ${r.code}); it needs next >=15.5.28 (15.x) or >=16.4.5 (16.x), so upgrade next in package.json` };
   }
   emit({ t: "phase", phase: "building" });
   if (buildCmd) {
@@ -522,6 +689,10 @@ async function build(spec, emit) {
       return { ok: false, code: "timed_out", message: why };
     }
     if (r.code !== 0) return { ok: false, code: "build_failed", message: `build exited with ${r.code}` };
+    if (wantsOpenNext) {
+      const chk = assertPreviewPropsBundled(dir, emit);
+      if (chk && chk.ok === false) return { ok: false, code: "build_failed", message: chk.message };
+    }
   }
   const out = normalize(join(dir, spec.output || "."));
   if (!out.startsWith(SRC) || !existsSync(out) || !statSync(out).isDirectory()) return { ok: false, code: "missing_index", message: `output directory "${spec.output || "."}" not found` };
@@ -587,6 +758,10 @@ export async function bundleServer(dir, artifact, env, emit) {
   if (cp.code !== 0) return { ok: false, code: "build_failed", message: "could not copy server assets" };
   for (const f of ["worker.js.map", "README.md"]) { try { rmSync(join(outDir, "worker", f), { force: true }); } catch {} }
   writeFileSync(join(outDir, "server.json"), JSON.stringify({ compatibility_date: date, compatibility_flags: flags, kind: kind || "server" }));
+  if (kind === "opennext" && typeof globalThis.fetch === "function") {
+    const smoke = await smokeTestBundledWorker(dir, emit);
+    if (!smoke.ok) return { ok: false, code: "build_failed", message: smoke.message };
+  }
   return { ok: true, output: outDir };
 }
 
