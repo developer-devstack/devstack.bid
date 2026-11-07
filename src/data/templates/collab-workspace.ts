@@ -60,8 +60,8 @@ const template: StackTemplate = {
   id: "collab-workspace",
   name: { en: "Realtime Collaborative Workspace", th: "พื้นที่ทำงานร่วมกันแบบเรียลไทม์" },
   summary: {
-    en: "Next.js + Yjs CRDT + y-websocket: shared notes that sync live between browsers, with presence count.",
-    th: "Next.js + Yjs (CRDT) + y-websocket: โน้ตที่ซิงก์สดระหว่างเบราว์เซอร์ พร้อมแสดงจำนวนคนที่ออนไลน์",
+    en: "Next.js collaborative notes: DevStack hosting syncs tabs in one browser (BroadcastChannel). The setup steps add Yjs + a local WebSocket server on your machine; cross-device sync needs an external backend.",
+    th: "Next.js โน้ตร่วมกัน: โฮสต์บน DevStack ซิงก์ได้เฉพาะแท็บในเบราว์เซอร์เดียวกัน (BroadcastChannel) ขั้นตอนตั้งค่าเพิ่ม Yjs + เซิร์ฟเวอร์ WebSocket บนเครื่องคุณ ซิงก์ข้ามอุปกรณ์ต้องมีแบ็กเอนด์แยก",
   },
   category: "collab",
   runtimes: ["node"],
@@ -113,7 +113,10 @@ const template: StackTemplate = {
     {
       id: "dev-server",
       title: { en: "Terminal 2: start Next.js", th: "เทอร์มินัล 2: เปิด Next.js" },
-      explanation: { en: "Open http://localhost:3000 in two windows and type — text syncs instantly.", th: "เปิด http://localhost:3000 สองหน้าต่างแล้วพิมพ์ — ข้อความจะซิงก์ทันที" },
+      explanation: {
+        en: "With the sync server running, open http://localhost:3000 in two windows and type — Yjs syncs via WebSocket. DevStack-hosted projects use BroadcastChannel (same browser only).",
+        th: "เมื่อเปิดเซิร์ฟเวอร์ซิงก์แล้ว เปิด http://localhost:3000 สองหน้าต่างแล้วพิมพ์ — Yjs ซิงก์ผ่าน WebSocket โปรเจกต์ที่โฮสต์บน DevStack ใช้ BroadcastChannel (เบราว์เซอร์เดียวกันเท่านั้น)",
+      },
       commands: ["{{run}} dev"],
       kind: "longRunning",
       expected: { en: "Status shows connected and people here: 2.", th: "สถานะแสดง connected และจำนวนคน 2" },

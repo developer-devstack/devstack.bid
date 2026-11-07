@@ -90,6 +90,10 @@ const dict = {
   "catalog.open": { en: "View steps", th: "ดูขั้นตอน" },
   "catalog.build": { en: "Open in builder", th: "เปิดในตัวสร้าง" },
   "catalog.deploy": { en: "Deploy", th: "ดีพลอย" },
+  "catalog.createProject": { en: "Create project", th: "สร้างโปรเจกต์" },
+  "catalog.setupScripts": { en: "Download setup", th: "ดาวน์โหลดสคริปต์" },
+  "catalog.sourceOnly": { en: "Setup source", th: "ซอร์สตั้งค่า" },
+  /** @deprecated Use catalog.createProject on non-hostable cards instead of suffixing Deploy. */
   "catalog.deployCreateOnly": { en: "create project", th: "สร้างโปรเจกต์" },
   "template.docs": { en: "Official docs", th: "เอกสารทางการ" },
   "template.fileTree": { en: "File tree", th: "โครงสร้างไฟล์" },

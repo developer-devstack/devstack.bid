@@ -9,9 +9,9 @@ Source of truth: `src/lib/deploy/templates.ts` (`DEPLOY_PROFILES`). Deploy provi
 
 | Profile | Source | Target | Path | Build | Entry | Assets | Needs (added by prepare PR) | Secrets | Audit flags |
 |---|---|---|---|---|---|---|---|---|---|
-| `nextjs-dashboard` | Stack template | worker-assets | cf-build | `npm run build` (Next.js `output: "export"`) | none | `out` | wrangler.jsonc | none | none: /new commits a complete static-export project (template-projects/) |
-| `nextjs-ai-chat` | Stack template | worker-assets | cf-build | same | none | `out` | wrangler.jsonc | none | Static export: no API route or server key; the page calls `NEXT_PUBLIC_CHAT_API` (your own endpoint) or runs in demo mode |
-| `collab-workspace` | Stack template | worker-assets | cf-build | same | none | `out` | wrangler.jsonc | none | Static export: realtime sync only between tabs of one browser (BroadcastChannel); cross-device needs a backend |
+| `nextjs-dashboard` | Stack template | opennext | cf-build | `npm run build` (`next build`; hosting runs `npx opennextjs-cloudflare build`) | `.open-next/worker.js` | `.open-next/assets` | wrangler.jsonc, open-next.config.ts, OpenNext deps in package.json | none | OpenNext Worker app (template-projects/) |
+| `nextjs-ai-chat` | Stack template | opennext | cf-build | same | `.open-next/worker.js` | `.open-next/assets` | same | none | OpenNext Worker app: add API routes under `app/api`; keep model keys as Worker secrets, never in client code |
+| `collab-workspace` | Stack template | opennext | cf-build | same | `.open-next/worker.js` | `.open-next/assets` | same | none | OpenNext Worker app; hosted seed syncs tabs in one browser only (BroadcastChannel). Cross-device needs a backend (e.g. Durable Objects). Setup steps teach Yjs + local WebSocket for dev |
 | `vite-react-game` | Stack template | worker-assets | cf-build | `npm run build` | none | `dist` (SPA) | wrangler.jsonc | none | Warning: only Docker config in template |
 | `react-admin-tool` | Stack template | worker-assets | cf-build | `npm run build` | none | `dist` (SPA) | wrangler.jsonc | none | Warning: needs a public data API |
 | `static-website` | Stack template | worker-assets | cf-build | `npm run build` (Vite) | none | `dist` | wrangler.jsonc | none | none: colours derived from the project name and description |

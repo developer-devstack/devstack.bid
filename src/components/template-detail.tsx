@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { getTemplate } from "@/data/templates";
+import { catalogTemplateActions } from "@/lib/deploy/catalog-actions";
 import { profileById } from "@/lib/deploy/templates";
 import { composeSteps, configForTemplate } from "@/lib/composer";
 import { CATEGORY_LABELS } from "@/lib/i18n";
@@ -20,6 +21,8 @@ export function TemplateDetail({ id }: { id: string }) {
   const config = configForTemplate(id);
   const steps = composeSteps(config);
   const ctx = buildContext(config, template);
+  const actions = catalogTemplateActions(template.id);
+  const profile = profileById(template.id);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -50,12 +53,17 @@ export function TemplateDetail({ id }: { id: string }) {
           </div>
           <h1 className="mt-4 text-4xl font-bold tracking-tighter text-fg sm:text-5xl">{template.name[lang]}</h1>
           <p className="mt-3 max-w-2xl text-lg text-muted">{template.summary[lang]}</p>
+          {profile?.flags[0] ? <p className="mt-2 max-w-2xl text-sm text-subtle">{profile.flags[0]}</p> : null}
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <Link href={`/deploy?template=${encodeURIComponent(template.id)}`} className={buttonClasses("primary", "lg", "w-full justify-center sm:w-auto")}>
-            {t("catalog.deploy")}
-            {(profileById(template.id)?.path ?? "none") === "none" ? ` · ${t("catalog.deployCreateOnly")}` : ""}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <Link href={actions.deployHref} className={buttonClasses("primary", "lg", "w-full justify-center sm:w-auto")}>
+            {t(actions.primaryI18nKey)}
           </Link>
+          {!actions.hostable && (
+            <Link href={actions.builderHref} className={buttonClasses("secondary", "lg", "w-full justify-center sm:w-auto")}>
+              {t("catalog.setupScripts")}
+            </Link>
+          )}
           <Link href="/templates" className={buttonClasses("secondary", "lg", "w-full justify-center sm:w-auto")}>
             {t("nav.templates")}
           </Link>

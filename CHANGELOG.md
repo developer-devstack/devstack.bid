@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Projects navigation:** project list from `GET /api/projects` is shown under **ประวัติโปรเจ็ก / Project history** in the main menu sheet (mobile) and in the top bar (wide desktop). The `/projects` page focuses on new project, zip upload, and create-repo; the same history panel appears in a sticky column on that page.
 - **ESLint / tests:** `ProjectHistoryPanel` avoids sync setState at effect start; chat mode URL sync defers `setState` with `queueMicrotask`; container security test asserts scrubbed `.git/config` (Git 2.4+ may redact tokens in `remote get-url` output).
 
+## [0.13.0-rc.9] - 2026-11-07
+
+### Changed
+- **Template catalog CTAs:** hostable stack templates keep **Deploy**; not-deployable templates (Express, FastAPI, Streamlit, CLI, PyPI) show **Create project**, **Download setup** (`/builder#t=<id>`), and a **Setup source** badge instead of a misleading Deploy label. `catalogTemplateActions` is the shared mapping; regression tests in `tests/catalog-deploy-actions.test.ts`.
+- **Collab copy:** `collab-workspace` summary and step text match hosted behavior (BroadcastChannel, same browser) vs local Yjs + WebSocket setup steps.
+- **docs/deploy-templates.md:** Next.js stack templates documented as **opennext** (`.open-next/worker.js` / `.open-next/assets`), not static `out` export.
+
+### Added
+- Tested **Loading Starter** artifact: `/opt/cursor/artifacts/loading-starter.zip` (Vite 8 + React 19, lockfile matches `package.json`; README covers import at `devstack.bid/new` without wrangler for DevStack hosting).
+
 ## [0.13.0-rc.8] - 2026-11-06
 
 ### Changed
