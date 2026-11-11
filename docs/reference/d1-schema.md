@@ -145,3 +145,30 @@ bucket ของ `usage_counters`: `d:YYYYMMDD` = วันตามเวลา
 ## `user_env` (migration 0012)
 
 Per-user Environment: secrets the user ticked "Remember" for. PK `(user_id, name)`; `name` is UPPER_SNAKE_CASE (2–64); `secret_enc` is sealed with CREDENTIALS_KEY v2 (HKDF info `env:NAME:user_id`); `provider`, `created_at`, `updated_at`, `last_used_at`. At most 50 entries per user. Only name and dates leave the server (`GET /api/environment`). Code: `src/lib/connections/environment.ts`.
+
+## `project_custom_domains` และ `project_server_bindings` (migration 0024)
+
+Hosting BYO hostname + optional SSR binding config (`schema_version = 24`). Apply remote **ก่อน** deploy Worker ที่เรียก table เหล่านี้ — ดู [CUSTOM-DOMAINS-ROLLOUT.md](../operations/CUSTOM-DOMAINS-ROLLOUT.md).
+
+### `project_custom_domains`
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `id` | TEXT PK | |
+| `project_id` | TEXT FK → `projects.id` | CASCADE |
+| `user_id` | TEXT FK → `users.id` | CASCADE |
+| `hostname` | TEXT | unique (เมื่อ `status != 'removed'`) |
+| `status` | TEXT | `pending`, `active`, `error`, `removed` |
+| `verify_token` | TEXT | TXT challenge |
+| `cf_domain_id` | TEXT | Workers Custom Domain id |
+| `error_message` | TEXT | |
+| `created_at`, `verified_at` | INTEGER ms | |
+
+### `project_server_bindings`
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+|---|---|---|
+| `project_id` | TEXT PK FK → `projects.id` | |
+| `user_id` | TEXT FK → `users.id` | |
+| `bindings_json` | TEXT | whitelist JSON, e.g. `{"ai":true}` |
+| `updated_at` | INTEGER ms | |

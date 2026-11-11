@@ -37,6 +37,8 @@
 
 ## วิธีเปิด pilot (ต้องอนุมัติ owner)
 
+Runbook ทีละขั้น (สถานะอัปเดต): [CUSTOM-DOMAINS-ROLLOUT.md](./CUSTOM-DOMAINS-ROLLOUT.md)
+
 1. รัน D1 migration **`0024_project_domains_bindings.sql`** บน production D1
 2. ยืนยัน `SITES_CF_API_TOKEN`, wildcard `*.devstack.bid`, WfP namespace พร้อม (GO เดิม)
 3. ตั้ง `CUSTOM_DOMAINS_ENABLED=true` (staging ก่อน prod)
