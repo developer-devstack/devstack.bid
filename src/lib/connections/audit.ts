@@ -25,7 +25,11 @@ export type AuditEvent =
   | "ai_site.turn"
   | "project.ai_turn"
   | "ai_site.promote"
-  | "ai_site.export";
+  | "ai_site.export"
+  | "domain.pending"
+  | "domain.active"
+  | "domain.removed"
+  | "domain.error";
 
 export async function audit(db: D1Like, userId: string, event: AuditEvent, subject?: string): Promise<void> {
   try {

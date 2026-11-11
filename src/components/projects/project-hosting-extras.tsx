@@ -14,9 +14,12 @@ type DomainRow = {
 };
 
 /** Custom domains + optional SSR Worker bindings (DevStack hosting). */
+type Capabilities = { customDomains?: boolean; serverBindings?: boolean };
+
 export function ProjectHostingExtras({ projectId }: { projectId: string }) {
   const { lang } = useLang();
   const th = lang === "th";
+  const [cap, setCap] = useState<Capabilities | null>(null);
   const [domains, setDomains] = useState<DomainRow[]>([]);
   const [host, setHost] = useState("");
   const [ai, setAi] = useState(false);
@@ -24,12 +27,27 @@ export function ProjectHostingExtras({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [d, b] = await Promise.all([
-      fetch(`/api/projects/${encodeURIComponent(projectId)}/domains`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/projects/${encodeURIComponent(projectId)}/server-bindings`, { cache: "no-store" }).then((r) => r.json()),
-    ]);
-    setDomains(d.domains ?? []);
-    setAi(!!b.bindings?.ai);
+    const caps = (await fetch("/api/hosting/capabilities", { cache: "no-store" }).then((r) => r.json())) as Capabilities;
+    setCap(caps);
+    if (!caps.customDomains && !caps.serverBindings) return;
+    const tasks: Promise<void>[] = [];
+    if (caps.customDomains) {
+      tasks.push(
+        fetch(`/api/projects/${encodeURIComponent(projectId)}/domains`, { cache: "no-store" }).then(async (r) => {
+          const d = await r.json();
+          setDomains(d.domains ?? []);
+        }),
+      );
+    }
+    if (caps.serverBindings) {
+      tasks.push(
+        fetch(`/api/projects/${encodeURIComponent(projectId)}/server-bindings`, { cache: "no-store" }).then(async (r) => {
+          const b = await r.json();
+          setAi(!!b.bindings?.ai);
+        }),
+      );
+    }
+    await Promise.all(tasks);
   }, [projectId]);
 
   useEffect(() => {
@@ -105,8 +123,11 @@ export function ProjectHostingExtras({ projectId }: { projectId: string }) {
     }
   };
 
+  if (cap && !cap.customDomains && !cap.serverBindings) return null;
+
   return (
     <Card className="mt-6 space-y-6 p-5">
+      {cap?.customDomains && (
       <HostingSection title={th ? "โดเมนของคุณ (beta)" : "Custom domain (beta)"}>
         <p className="text-sm text-subtle">
           {th
@@ -128,6 +149,8 @@ export function ProjectHostingExtras({ projectId }: { projectId: string }) {
           </button>
         </div>
       </HostingSection>
+      )}
+      {cap?.serverBindings && (
       <HostingSection title={th ? "Server bindings (SSR)" : "Server bindings (SSR)"}>
         <div className="flex items-start gap-2 text-sm">
           <input
@@ -148,6 +171,7 @@ export function ProjectHostingExtras({ projectId }: { projectId: string }) {
           {th ? "บันทึก bindings" : "Save bindings"}
         </button>
       </HostingSection>
+      )}
       {msg && <p className="text-sm text-subtle" role="status">{msg}</p>}
     </Card>
   );

@@ -1,6 +1,6 @@
 # Custom domains on DevStack hosting (beta)
 
-Status: **beta** (same Cloudflare account as platform `SITES_CF_*`).
+Status: **implemented, ship-dark** — `CUSTOM_DOMAINS_ENABLED=false` and `SERVER_BINDINGS_ENABLED=false` in `wrangler.jsonc` until the 100–200 domain pilot is verified. Capacity plan: [../operations/CUSTOM-DOMAINS-CAPACITY-200.md](../operations/CUSTOM-DOMAINS-CAPACITY-200.md).
 
 ## Prerequisites
 

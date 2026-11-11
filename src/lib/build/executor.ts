@@ -20,6 +20,7 @@ import { safeBranch } from "@/lib/auth/github-policy";
 import { previewHost, productionHost, siteSlug } from "@/lib/hosting/hostnames";
 import { makeCustomDomainSync } from "@/lib/hosting/custom-domains";
 import { promoteProduction, publishPreview, publishServer, writeSite } from "@/lib/hosting/publish";
+import { serverBindingsFeatureOn } from "@/lib/hosting/config";
 import { loadProjectServerBindings, workerBindingsFromSpec } from "@/lib/hosting/server-bindings";
 import { getProjectSourceTar, sourceTarKey } from "@/lib/hosting/sources";
 import { CfApiError, deployServerWorker, readServerBundle, serverWorkerName, type CfApi } from "@/lib/hosting/server-worker";
@@ -329,7 +330,7 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
       const production = job.environment === "production";
       // Name from ids (not the reusable slug); previews get their own Worker so they never replace production.
       const worker = await serverWorkerName(project.id, production ? null : dep.id);
-      const bindingSpec = await loadProjectServerBindings(db, project.id);
+      const bindingSpec = serverBindingsFeatureOn() ? await loadProjectServerBindings(db, project.id) : {};
       const extraBindings = workerBindingsFromSpec(bindingSpec);
       await log.line(`Server build detected: deploying the project Worker (${bundle.assets.length} assets).`);
       try {

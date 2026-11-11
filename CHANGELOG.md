@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **DevStack hosting — custom domains (beta):** `POST/GET /api/projects/:id/domains`, `POST …/domains/:id/verify`, `DELETE …/domains/:id`. TXT `_devstack-challenge.<hostname>` verification, Workers Custom Domain on router `devstack-sites`, R2 `custom-hosts/<hostname>.json` routing. Project page UI under deploy panels.
 - **DevStack hosting — server bindings (SSR):** `GET/PUT /api/projects/:id/server-bindings` with whitelist `ai` (Workers AI binding on OpenNext user Workers). Migration `0024_project_domains_bindings.sql`.
+- **Capacity pilot (100–200 domains):** `CUSTOM_DOMAINS_ENABLED` / `SERVER_BINDINGS_ENABLED` (default **false**), platform caps in wrangler vars, `NVX_DOMAINS_LIMITER`, D1 daily quotas, audit events, `GET /api/hosting/capabilities`, `GET /api/admin/hosting-capacity`. Doc: `docs/operations/CUSTOM-DOMAINS-CAPACITY-200.md`.
 
 ### Changed
 - **Projects navigation:** project list from `GET /api/projects` is shown under **ประวัติโปรเจ็ก / Project history** in the main menu sheet (mobile) and in the top bar (wide desktop). The `/projects` page focuses on new project, zip upload, and create-repo; the same history panel appears in a sticky column on that page.

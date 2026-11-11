@@ -15,7 +15,13 @@ interface RateLimitBinding {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
-export type LimiterName = "NVX_PLAN_AI_LIMITER" | "NVX_PLAN_LIMITER" | "NVX_CHAT_LIMITER" | "NVX_FACTORY_LIMITER" | "NVX_STUDIO_LIMITER";
+export type LimiterName =
+  | "NVX_PLAN_AI_LIMITER"
+  | "NVX_PLAN_LIMITER"
+  | "NVX_CHAT_LIMITER"
+  | "NVX_FACTORY_LIMITER"
+  | "NVX_STUDIO_LIMITER"
+  | "NVX_DOMAINS_LIMITER";
 
 async function binding(name: LimiterName): Promise<RateLimitBinding | null> {
   try {

@@ -116,6 +116,14 @@
     "STUDIO_DAILY_CALLS": "60",
     "STUDIO_GLOBAL_CALLS_PER_DAY": "3000",
     "SITES_DNS_READY": "1",
+    "CUSTOM_DOMAINS_ENABLED": "false",
+    "SERVER_BINDINGS_ENABLED": "false",
+    "DEVSTACK_CUSTOM_DOMAINS_MAX_ACTIVE": "200",
+    "DEVSTACK_CUSTOM_DOMAINS_PER_PROJECT": "3",
+    "DEVSTACK_CUSTOM_DOMAINS_MAX_USERS": "200",
+    "DEVSTACK_CUSTOM_DOMAINS_REGISTER_PER_USER_DAY": "5",
+    "DEVSTACK_CUSTOM_DOMAINS_VERIFY_PER_USER_DAY": "20",
+    "DOMAINS_BURST_PER_MIN": "8",
     "CF_ACCOUNT_ID": "2d92bd5b25768fa9093d6adc0a8887fc"
   },
   "ratelimits": [
@@ -156,6 +164,14 @@
       "namespace_id": "4715",
       "simple": {
         "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "NVX_DOMAINS_LIMITER",
+      "namespace_id": "4716",
+      "simple": {
+        "limit": 8,
         "period": 60
       }
     }

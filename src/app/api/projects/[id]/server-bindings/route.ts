@@ -2,6 +2,8 @@ import { connection } from "next/server";
 import { json } from "@/lib/chat/runtime";
 import { getProject } from "@/lib/connections/projects";
 import { gate, isResponse } from "@/lib/connections/route-kit";
+import { serverBindingsFeatureOn } from "@/lib/hosting/config";
+import { bindingsDisabledResponse } from "@/lib/hosting/feature-gate";
 import { getProjectServerBindings, parseServerBindings, setProjectServerBindings } from "@/lib/hosting/server-bindings";
 
 /** GET /api/projects/:id/server-bindings */
@@ -9,6 +11,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   await connection();
   const a = await gate(req, { write: false, burstKey: "proj-bindings", perMinute: 60 });
   if (isResponse(a)) return a;
+  if (!serverBindingsFeatureOn()) return bindingsDisabledResponse();
   const id = (await ctx.params).id;
   const p = await getProject(a.db, a.uid, id);
   if (!p) return json({ error: "Not found. / ไม่พบโปรเจกต์", code: "not_found" }, 404);
@@ -21,6 +24,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   await connection();
   const a = await gate(req, { write: true, burstKey: "proj-bindings-set", perMinute: 10 });
   if (isResponse(a)) return a;
+  if (!serverBindingsFeatureOn()) return bindingsDisabledResponse();
   const id = (await ctx.params).id;
   const p = await getProject(a.db, a.uid, id);
   if (!p) return json({ error: "Not found. / ไม่พบโปรเจกต์", code: "not_found" }, 404);

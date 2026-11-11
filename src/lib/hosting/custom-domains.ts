@@ -10,10 +10,13 @@ import { resolveServerWorker } from "./serve";
 import { siteSlug } from "./hostnames";
 import { CfApiError, type CfApi } from "./server-worker";
 import { customHostKey, deleteCustomHostRecord, normalizeHostname, writeCustomHostRecord } from "./custom-host-r2";
+import { assertPlatformDomainCapacity, maxDomainsPerProject } from "./domain-policy";
+import { audit } from "@/lib/connections/audit";
 
 export const SITES_ROUTER_SERVICE = "devstack-sites";
 export { customHostKey, normalizeHostname, writeCustomHostRecord, deleteCustomHostRecord };
-export const MAX_CUSTOM_DOMAINS_PER_PROJECT = 5;
+/** @deprecated use maxDomainsPerProject() from domain-policy */
+export const MAX_CUSTOM_DOMAINS_PER_PROJECT = 3;
 export const VERIFY_LABEL = "_devstack-challenge";
 
 export type CustomDomainStatus = "pending" | "active" | "error" | "removed";
@@ -171,9 +174,9 @@ export async function syncActiveCustomDomains(
     .prepare("SELECT hostname FROM project_custom_domains WHERE project_id = ?1 AND status = 'active'")
     .bind(projectId)
     .all<{ hostname: string }>();
-  for (const row of results ?? []) {
-    await writeCustomHostRecord(bucket, row.hostname, projectId, deploymentId, worker);
-  }
+  await Promise.all(
+    (results ?? []).map((row) => writeCustomHostRecord(bucket, row.hostname, projectId, deploymentId, worker)),
+  );
 }
 
 export function makeCustomDomainSync(
@@ -209,7 +212,7 @@ export async function addProjectCustomDomain(db: D1Like, uid: string, projectId:
   const h = validateCustomHostname(hostname);
   if (!h) throw new Error("invalid_hostname");
   if (await hostnameTaken(db, h, projectId)) throw new Error("hostname_taken");
-  if ((await countProjectCustomDomains(db, projectId)) >= MAX_CUSTOM_DOMAINS_PER_PROJECT) throw new Error("domain_limit");
+  if ((await countProjectCustomDomains(db, projectId)) >= maxDomainsPerProject()) throw new Error("domain_limit");
   const row: CustomDomainRow = {
     id: newDomainId(),
     project_id: projectId,
@@ -223,6 +226,7 @@ export async function addProjectCustomDomain(db: D1Like, uid: string, projectId:
     verified_at: null,
   };
   await insertCustomDomain(db, row);
+  await audit(db, uid, "domain.pending", h);
   return row;
 }
 
@@ -240,6 +244,7 @@ export async function verifyProjectCustomDomain(
   const ok = await dnsTxtContainsToken(row.hostname, row.verify_token, fetcher);
   if (!ok) throw new Error("verify_failed");
   if (!api?.token) throw new Error("cf_not_configured");
+  await assertPlatformDomainCapacity(db, uid);
   try {
     const attached = await attachSitesCustomDomain(api, row.hostname);
     const deploymentId = await latestProductionDeploymentId(db, row.project_id);
@@ -249,10 +254,12 @@ export async function verifyProjectCustomDomain(
     const worker = slug ? await resolveServerWorker(bucket, slug) : null;
     await markCustomDomain(db, row.id, { status: "active", cf_domain_id: attached.id, verified_at: Date.now(), error_message: null });
     await writeCustomHostRecord(bucket, row.hostname, row.project_id, deploymentId, worker ?? undefined);
+    await audit(db, uid, "domain.active", row.hostname);
     return { ...row, status: "active", cf_domain_id: attached.id, verified_at: Date.now(), error_message: null };
   } catch (e) {
     const msg = e instanceof CfApiError ? e.detail : String((e as Error)?.message ?? e).slice(0, 200);
     await markCustomDomain(db, row.id, { status: "error", error_message: msg });
+    await audit(db, uid, "domain.error", `${row.hostname}:${msg.slice(0, 80)}`);
     throw e;
   }
 }
@@ -274,4 +281,5 @@ export async function removeProjectCustomDomain(
       /* detach best-effort */
     }
   }
+  await audit(db, uid, "domain.removed", row.hostname);
 }

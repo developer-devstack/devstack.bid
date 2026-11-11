@@ -3,6 +3,8 @@ import { json } from "@/lib/chat/runtime";
 import { getProject } from "@/lib/connections/projects";
 import { gate, isResponse } from "@/lib/connections/route-kit";
 import { routeBuildBindings } from "@/lib/build/bindings";
+import { customDomainsFeatureOn } from "@/lib/hosting/config";
+import { domainsDisabledResponse } from "@/lib/hosting/feature-gate";
 import { removeProjectCustomDomain } from "@/lib/hosting/custom-domains";
 
 /** DELETE /api/projects/:id/domains/:domainId */
@@ -10,6 +12,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; 
   await connection();
   const a = await gate(req, { write: true, burstKey: "proj-domains-del", perMinute: 10 });
   if (isResponse(a)) return a;
+  if (!customDomainsFeatureOn()) return domainsDisabledResponse();
   const { id, domainId } = await ctx.params;
   const p = await getProject(a.db, a.uid, id);
   if (!p) return json({ error: "Not found. / ไม่พบโปรเจกต์", code: "not_found" }, 404);

@@ -1,7 +1,12 @@
 import { connection } from "next/server";
 import { json } from "@/lib/chat/runtime";
+import { consumeDomainRegisterQuota } from "@/lib/hosting/domain-policy";
+import { domainsDisabledResponse } from "@/lib/hosting/feature-gate";
+import { customDomainsFeatureOn, hostingEnv } from "@/lib/hosting/config";
 import { getProject } from "@/lib/connections/projects";
 import { gate, isResponse } from "@/lib/connections/route-kit";
+import { clientIp } from "@/lib/server/http";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 import {
   addProjectCustomDomain,
   challengeRecordName,
@@ -14,6 +19,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   await connection();
   const a = await gate(req, { write: false, burstKey: "proj-domains", perMinute: 60 });
   if (isResponse(a)) return a;
+  if (!customDomainsFeatureOn()) return domainsDisabledResponse();
   const id = (await ctx.params).id;
   const p = await getProject(a.db, a.uid, id);
   if (!p) return json({ error: "Not found. / ไม่พบโปรเจกต์", code: "not_found" }, 404);
@@ -35,9 +41,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   await connection();
   const a = await gate(req, { write: true, burstKey: "proj-domains-add", perMinute: 10 });
   if (isResponse(a)) return a;
+  if (!customDomainsFeatureOn()) return domainsDisabledResponse();
+  const burst = await checkRateLimit("NVX_DOMAINS_LIMITER", `domains-add:${clientIp(req)}`, hostingEnv().DOMAINS_BURST_PER_MIN, { memoryOnly: false });
+  if (!burst.ok) return json({ error: "Too many requests. / ส่งคำขอถี่เกินไป", code: "rate_limited" }, 429, { "Retry-After": "60" });
   const id = (await ctx.params).id;
   const p = await getProject(a.db, a.uid, id);
   if (!p) return json({ error: "Not found. / ไม่พบโปรเจกต์", code: "not_found" }, 404);
+  const quota = await consumeDomainRegisterQuota(a.db, a.uid);
+  if (!quota.ok) {
+    return json({ error: "Daily custom-domain registration limit. / ครบโควต้าเพิ่มโดเมนต่อวัน", code: "quota" }, 429, { "Retry-After": String(quota.retryAfterSec ?? 3600) });
+  }
   let body: { hostname?: string };
   try {
     body = (await req.json()) as { hostname?: string };

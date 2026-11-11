@@ -37,7 +37,7 @@ describe("home page (v0.9 phase 2)", () => {
     const { container } = render(<Home />);
     expect(container.querySelectorAll('[data-testid="capabilities"] li').length).toBe(6);
     const text = container.textContent ?? "";
-    for (const s of ["Import a GitHub repo", "15.5.28", "20 AI requests and 10 builds per day", "custom domains", "npx devstack-bid"]) expect(text).toContain(s);
+    for (const s of ["Import a GitHub repo", "15.5.28", "20 AI requests and 10 builds per day", "internal pilot", "npx devstack-bid"]) expect(text).toContain(s);
     expect(text).not.toMatch(/ready to copy|setup\.sh/);
     expect(screen.getAllByRole("link", { name: /Start a new project/ })[0].getAttribute("href")).toBe("/new");
   });

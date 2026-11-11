@@ -24,7 +24,9 @@ export type LimitKind =
   | "pr_user_day"
   | "deploy_user_day"
   | "cli_user_day"
-  | "upload_user_day";
+  | "upload_user_day"
+  | "domain_register_user_day"
+  | "domain_verify_user_day";
 
 export interface LimitRule {
   scope: string;

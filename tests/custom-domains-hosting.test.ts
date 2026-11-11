@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { customDomainsFeatureOn, serverBindingsFeatureOn } from "@/lib/hosting/config";
 import { validateCustomHostname, challengeRecordName } from "@/lib/hosting/custom-domains";
 import { writeCustomHostRecord } from "@/lib/hosting/custom-host-r2";
 import { parseServerBindings, workerBindingsFromSpec } from "@/lib/hosting/server-bindings";
@@ -25,6 +26,14 @@ function memBucket(): R2BucketLike {
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const DEP = "0f3a9c2e-1111-4222-8333-944455556666";
+
+describe("hosting feature config", () => {
+  it("defaults to ship-dark", () => {
+    expect(customDomainsFeatureOn({})).toBe(false);
+    expect(serverBindingsFeatureOn({})).toBe(false);
+    expect(customDomainsFeatureOn({ CUSTOM_DOMAINS_ENABLED: "true" })).toBe(true);
+  });
+});
 
 describe("custom hostnames", () => {
   it("validates external FQDNs only", () => {

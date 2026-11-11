@@ -142,6 +142,21 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 - [`.env.example`](../../.env.example) → คัดลอกเป็น `.env.local` สำหรับ `next dev`/`next start` (มี `OPENAI_API_KEY`, `OPENAI_MODEL`)
 - [`.dev.vars.example`](../../.dev.vars.example) → คัดลอกเป็น `.dev.vars` สำหรับ `npm run preview` (มี `OPENAI_API_KEY` และตัวเลือกที่คอมเมนต์ไว้)
 
+## DevStack hosting — custom domains & SSR bindings ([`src/lib/hosting/config.ts`](../../src/lib/hosting/config.ts))
+
+| ชื่อ | ชนิด | ค่าเริ่มต้นในโค้ด | ค่าใน `wrangler.jsonc` | ใช้ทำอะไร |
+|---|---|---|---|---|
+| `CUSTOM_DOMAINS_ENABLED` | var | `false` | `false` | เปิด API/UI โดเมนของผู้ใช้ (ปิดจน pilot พร้อม) |
+| `SERVER_BINDINGS_ENABLED` | var | `false` | `false` | เปิด Workers AI binding บน SSR upload |
+| `DEVSTACK_CUSTOM_DOMAINS_MAX_ACTIVE` | var | 200 | `200` | เพดานโดเมน `active` ทั้งแพลตฟอร์ม |
+| `DEVSTACK_CUSTOM_DOMAINS_MAX_USERS` | var | 200 | `200` | เพดานผู้ใช้ที่มีโดเมน active (0 = ไม่จำกัด) |
+| `DEVSTACK_CUSTOM_DOMAINS_PER_PROJECT` | var | 3 | `3` | โดเมนต่อโปรเจกต์ |
+| `DEVSTACK_CUSTOM_DOMAINS_REGISTER_PER_USER_DAY` | var | 5 | `5` | D1 quota เพิ่มโดเมนต่อวัน |
+| `DEVSTACK_CUSTOM_DOMAINS_VERIFY_PER_USER_DAY` | var | 20 | `20` | D1 quota verify ต่อวัน |
+| `DOMAINS_BURST_PER_MIN` | var | 8 | `8` | สำรองเมื่อไม่มี `NVX_DOMAINS_LIMITER` |
+
+ดูแผนทรัพยากร 100–200 โดเมน: [operations/CUSTOM-DOMAINS-CAPACITY-200.md](../operations/CUSTOM-DOMAINS-CAPACITY-200.md)
+
 ## localStorage ฝั่ง client (ไม่ใช่ env แต่เป็น config ของผู้ใช้)
 
 | คีย์ | ค่า | ใช้ทำอะไร |
