@@ -1,6 +1,6 @@
 # Custom domain + server bindings — rollout runbook
 
-สถานะรวม (อัปเดตเมื่อโค้ดอยู่บน `main`): **Phase 0–1 เสร็จ** · **Phase 2–3 รอ owner** (D1 remote + deploy จากสภาพแวดล้อมที่มีสิทธิ์บัญชี `2d92bd5b25768fa9093d6adc0a8887fc`)
+สถานะรวม: **Phase 0–1 เสร็จ** · **D1 0024 บน production ✅** (apply 2026-11-11, `schema_version=24`) · **Phase 3 deploy รอ** — token ใน shell ต้องเป็นบัญชี `2d92bd5b…` ไม่ใช่ token อื่นที่ pod inject ทับ secrets
 
 อ้างอิงทรัพยากร: [CUSTOM-DOMAINS-CAPACITY-200.md](./CUSTOM-DOMAINS-CAPACITY-200.md) · ฟีเจอร์: [../platform/CUSTOM-DOMAINS-HOSTING.md](../platform/CUSTOM-DOMAINS-HOSTING.md)
 

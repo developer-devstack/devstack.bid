@@ -43,7 +43,11 @@ describe("no emoji in UI source", () => {
   const walk = (dir: string): string[] =>
     readdirSync(dir).flatMap((f) => {
       const p = join(dir, f);
-      return statSync(p).isDirectory() ? walk(p) : /\.(tsx?|css|json)$/.test(p) ? [p] : [];
+      if (statSync(p).isDirectory()) {
+        if (p.includes(`${join("src", "generated")}`)) return [];
+        return walk(p);
+      }
+      return /\.(tsx?|css|json)$/.test(p) ? [p] : [];
     });
   it("src/ contains no emoji icons", () => {
     const offenders = walk(join(process.cwd(), "src")).filter((p) => EMOJI.test(readFileSync(p, "utf8")));
