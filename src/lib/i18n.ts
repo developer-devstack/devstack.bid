@@ -49,7 +49,7 @@ const dict = {
   "home.faq2.q2": { en: "Which projects can I deploy?", th: "deploy โปรเจกต์แบบไหนได้บ้าง" },
   "home.faq2.a2": { en: "Static sites and front-end builds (Vite, VitePress, plain Node static output) and Next.js 15.5.28 or newer via OpenNext.", th: "เว็บ static และงาน build ฝั่ง front-end (Vite, VitePress, Node ที่ได้ไฟล์ static) และ Next.js 15.5.28 ขึ้นไปผ่าน OpenNext" },
   "home.faq2.q3": { en: "What is not supported yet?", th: "อะไรที่ยังไม่รองรับ" },
-  "home.faq2.a3": { en: "Your own custom server Workers with bindings (for example an /api using AI or rate-limit bindings), and custom domains. Sites are served on *.devstack.bid.", th: "Worker ฝั่งเซิร์ฟเวอร์ของคุณเองที่ใช้ binding (เช่น /api ที่ใช้ AI หรือ rate-limit binding) และโดเมนของคุณเอง ตอนนี้เว็บจะอยู่บน *.devstack.bid" },
+  "home.faq2.a3": { en: "Fully custom server Workers (your own bindings beyond the optional AI binding) and arbitrary DNS zones without Cloudflare. DevStack hosting includes *.devstack.bid URLs, optional verified custom domains (beta), and optional Workers AI on SSR builds.", th: "Worker ฝั่งเซิร์ฟเวอร์แบบกำหนด bindings เองเต็มรูปแบบ และโซน DNS ที่ไม่ได้อยู่บน Cloudflare ยังไม่รองรับ โฮสต์ DevStack มี URL *.devstack.bid โดเมนของคุณแบบยืนยันแล้ว (beta) และ Workers AI บน SSR (เลือกได้)" },
   "home.faq2.q4": { en: "Do previews affect my live site?", th: "preview กระทบเว็บจริงไหม" },
   "home.faq2.a4": { en: "No. Branches and pull requests build to a separate preview URL. Only pushes to main update production.", th: "ไม่กระทบ branch และ pull request จะ build ไปที่ URL preview แยก มีเพียงการ push เข้า main เท่านั้นที่อัปเดตเว็บจริง" },
   "home.ctaStart": { en: "Start building", th: "เริ่มสร้างเลย" },

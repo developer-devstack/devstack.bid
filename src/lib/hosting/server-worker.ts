@@ -190,7 +190,7 @@ export async function deployServerWorker(
   name: string,
   b: ServerBundle,
   projectId: string,
-  opts: { allowLegacyWorkers?: boolean } = {},
+  opts: { allowLegacyWorkers?: boolean; extraBindings?: Record<string, unknown>[] } = {},
 ): Promise<{ versionId: string | null; assets: number; via: "wfp" | "legacy" }> {
   assertCustomerWorker(name);
   if (!api.proxySecret) throw new Error("proxy_secret_missing");
@@ -220,6 +220,9 @@ export async function deployServerWorker(
   }
   const bindings: Record<string, unknown>[] = [{ type: "secret_text", name: "DEVSTACK_PROXY_KEY", text: await proxyKey(api.proxySecret, name) }];
   if (completion) bindings.push({ type: "assets", name: "ASSETS" });
+  for (const extra of opts.extraBindings ?? []) {
+    if (extra && typeof extra === "object" && typeof extra.type === "string" && typeof extra.name === "string") bindings.push(extra);
+  }
   const metadata: Record<string, unknown> = {
     main_module: "devstack-guard.js",
     compatibility_date: SERVER_COMPAT_DATE,

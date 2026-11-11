@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **DevStack hosting — custom domains (beta):** `POST/GET /api/projects/:id/domains`, `POST …/domains/:id/verify`, `DELETE …/domains/:id`. TXT `_devstack-challenge.<hostname>` verification, Workers Custom Domain on router `devstack-sites`, R2 `custom-hosts/<hostname>.json` routing. Project page UI under deploy panels.
+- **DevStack hosting — server bindings (SSR):** `GET/PUT /api/projects/:id/server-bindings` with whitelist `ai` (Workers AI binding on OpenNext user Workers). Migration `0024_project_domains_bindings.sql`.
+
 ### Changed
 - **Projects navigation:** project list from `GET /api/projects` is shown under **ประวัติโปรเจ็ก / Project history** in the main menu sheet (mobile) and in the top bar (wide desktop). The `/projects` page focuses on new project, zip upload, and create-repo; the same history panel appears in a sticky column on that page.
 - **ESLint / tests:** `ProjectHistoryPanel` avoids sync setState at effect start; chat mode URL sync defers `setState` with `queueMicrotask`; container security test asserts scrubbed `.git/config` (Git 2.4+ may redact tokens in `remote get-url` output).

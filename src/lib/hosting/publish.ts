@@ -45,14 +45,31 @@ export async function publishPreview(bucket: R2BucketLike, slug: string, project
 }
 
 /** Promote: the production hostname now serves this deployment. */
-export async function promoteProduction(bucket: R2BucketLike, slug: string, projectId: string, deploymentId: string, domain = PLATFORM_DOMAIN): Promise<string> {
+export async function promoteProduction(
+  bucket: R2BucketLike,
+  slug: string,
+  projectId: string,
+  deploymentId: string,
+  domain = PLATFORM_DOMAIN,
+  afterPromote?: (() => Promise<void>) | null,
+): Promise<string> {
   const host = productionHost(slug, domain);
   await alias(bucket, host, projectId, deploymentId, domain);
+  if (afterPromote) await afterPromote();
   return `https://${host}`;
 }
 
 /** Point the production host (and this deployment's preview host) at the project's server Worker. */
-export async function publishServer(bucket: R2BucketLike, slug: string, projectId: string, deploymentId: string, worker: string, production: boolean, domain = PLATFORM_DOMAIN): Promise<{ preview: string; production: string | null }> {
+export async function publishServer(
+  bucket: R2BucketLike,
+  slug: string,
+  projectId: string,
+  deploymentId: string,
+  worker: string,
+  production: boolean,
+  domain = PLATFORM_DOMAIN,
+  afterProduction?: (() => Promise<void>) | null,
+): Promise<{ preview: string; production: string | null }> {
   const pv = previewHost(slug, deploymentId, domain);
   await alias(bucket, pv, projectId, deploymentId, domain, worker);
   await indexWorker(bucket, worker, pv.slice(0, -domain.length - 1));
@@ -60,6 +77,7 @@ export async function publishServer(bucket: R2BucketLike, slug: string, projectI
   const prod = productionHost(slug, domain);
   await alias(bucket, prod, projectId, deploymentId, domain, worker);
   await indexWorker(bucket, worker, prod.slice(0, -domain.length - 1));
+  if (afterProduction) await afterProduction();
   return { preview: `https://${pv}`, production: `https://${prod}` };
 }
 

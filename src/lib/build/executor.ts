@@ -18,7 +18,9 @@ import { ServiceError } from "@/lib/connections/github-service";
 import { getBranchSha } from "@/lib/auth/github-api";
 import { safeBranch } from "@/lib/auth/github-policy";
 import { previewHost, productionHost, siteSlug } from "@/lib/hosting/hostnames";
+import { makeCustomDomainSync } from "@/lib/hosting/custom-domains";
 import { promoteProduction, publishPreview, publishServer, writeSite } from "@/lib/hosting/publish";
+import { loadProjectServerBindings, workerBindingsFromSpec } from "@/lib/hosting/server-bindings";
 import { getProjectSourceTar, sourceTarKey } from "@/lib/hosting/sources";
 import { CfApiError, deployServerWorker, readServerBundle, serverWorkerName, type CfApi } from "@/lib/hosting/server-worker";
 import { sanitizeLog } from "@/lib/deploy/sanitize";
@@ -327,9 +329,11 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
       const production = job.environment === "production";
       // Name from ids (not the reusable slug); previews get their own Worker so they never replace production.
       const worker = await serverWorkerName(project.id, production ? null : dep.id);
+      const bindingSpec = await loadProjectServerBindings(db, project.id);
+      const extraBindings = workerBindingsFromSpec(bindingSpec);
       await log.line(`Server build detected: deploying the project Worker (${bundle.assets.length} assets).`);
       try {
-        await deployServerWorker(b.cfApi, worker, bundle, project.id);
+        await deployServerWorker(b.cfApi, worker, bundle, project.id, { extraBindings });
       } catch (e) {
         const msg = String((e as Error)?.message ?? e);
         if (msg === "wfp_required") {
@@ -340,7 +344,8 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
         console.warn(JSON.stringify({ at: "server-worker-deploy", jobId, code, detail: e instanceof CfApiError ? e.detail : undefined }));
         return fail("cf_api", `Worker upload failed (error code ${code}).`);
       }
-      const urls = await publishServer(b.sites!, cfg.slug, project.id, dep.id, worker, production);
+      const afterProd = production && b.sites ? makeCustomDomainSync(db, b.sites, project.id, dep.id, worker) : null;
+      const urls = await publishServer(b.sites!, cfg.slug, project.id, dep.id, worker, production, undefined, afterProd);
       await transitionJob(db, jobId, "uploading", "succeeded", { artifact_key: `artifacts/${jobId}.tar` }, now());
       await log.line(`Ready: ${urls.preview}${urls.production ? ` (production ${urls.production})` : ""}`);
       await closeDeployment("live", { url: urls.preview, alias: urls.production });
@@ -350,7 +355,8 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
     const written = await writeSite(b.sites!, dep.id, files);
     await log.line(`Uploaded ${written.files} files (${Math.round(written.bytes / 1024)} KiB).`);
     const preview = await publishPreview(b.sites!, cfg.slug, project.id, dep.id);
-    const production = job.environment === "production" ? await promoteProduction(b.sites!, cfg.slug, project.id, dep.id) : null;
+    const afterProd = job.environment === "production" && b.sites ? makeCustomDomainSync(db, b.sites, project.id, dep.id) : null;
+    const production = job.environment === "production" ? await promoteProduction(b.sites!, cfg.slug, project.id, dep.id, undefined, afterProd) : null;
     await transitionJob(db, jobId, "uploading", "succeeded", { artifact_key: `artifacts/${jobId}.tar` }, now());
     if (b.dnsReady) {
       await log.line(`Ready: ${preview}${production ? ` (production ${production})` : ""}`);

@@ -19,6 +19,7 @@ import { startContainerBuild, type BuildBindings } from "@/lib/build/executor";
 import { appendEvent, createBuildJob, transitionJob, type BuildJobRow, type Environment } from "@/lib/build/jobs";
 import { startDeploy, getDeployment, type DeploymentRow } from "@/lib/deploy/service";
 import { loadProjectFiles, uploadProfile } from "@/lib/deploy/upload";
+import { makeCustomDomainSync } from "./custom-domains";
 import { HostTakenError, promoteProduction, publishPreview, writeSite } from "./publish";
 import { previewHost, siteSlug } from "./hostnames";
 import type { R2BucketLike } from "./serve";
@@ -178,7 +179,7 @@ export async function publishUploadedSite(
     const previewUrl = await publishPreview(sites, slug, project.id, deploymentId);
     let alias: string | null = null;
     if (environment === "production") {
-      alias = await promoteProduction(sites, slug, project.id, deploymentId);
+      alias = await promoteProduction(sites, slug, project.id, deploymentId, undefined, makeCustomDomainSync(db, sites, project.id, deploymentId));
       await db.prepare("UPDATE deployments SET alias_url = NULL, environment = 'preview' WHERE project_id = ?1 AND user_id = ?3 AND id != ?2 AND alias_url IS NOT NULL")
         .bind(project.id, deploymentId, uid).run();
     }
@@ -228,7 +229,7 @@ export async function rollbackHostingDeployment(
   if (!slug) throw new ServiceError("invalid", "Project name cannot be used as a site hostname.", 422);
 
   try {
-    const url = await promoteProduction(sites, slug, project.id, d.id);
+    const url = await promoteProduction(sites, slug, project.id, d.id, undefined, makeCustomDomainSync(db, sites, project.id, d.id));
     await db.prepare("UPDATE deployments SET alias_url = NULL, environment = 'preview' WHERE project_id = ?1 AND user_id = ?3 AND id != ?2 AND alias_url IS NOT NULL")
       .bind(project.id, d.id, uid).run();
     await db.prepare("UPDATE deployments SET alias_url = ?2, environment = 'production' WHERE id = ?1 AND user_id = ?3")

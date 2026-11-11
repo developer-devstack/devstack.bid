@@ -4,6 +4,7 @@
  * No cookies, no platform secrets; strict headers so user content cannot frame the platform.
  */
 import { parseHost } from "./hostnames";
+import { normalizeHostname, readCustomHostRecord } from "./custom-host-r2";
 
 export interface R2ObjectLike { body: ReadableStream; httpEtag?: string; size?: number; httpMetadata?: { contentType?: string } }
 export interface R2BucketLike {
@@ -88,6 +89,31 @@ export async function resolveServerWorker(bucket: R2BucketLike, label: string): 
   } catch {
     return null;
   }
+}
+
+export interface SiteRoute {
+  label: string;
+  customHost: boolean;
+  deploymentId?: string;
+  worker?: string;
+}
+
+/** Map a request Host to a site label (platform slug label or verified custom domain). */
+export async function resolveSiteRoute(bucket: R2BucketLike, hostname: string, domain?: string): Promise<SiteRoute | null> {
+  const parsed = parseHost(hostname, domain);
+  if (parsed.kind === "site") return { label: parsed.label, customHost: false };
+  if (parsed.kind === "foreign") {
+    const rec = await readCustomHostRecord(bucket, hostname);
+    if (rec) {
+      return {
+        label: normalizeHostname(hostname),
+        customHost: true,
+        deploymentId: rec.deploymentId,
+        worker: rec.worker,
+      };
+    }
+  }
+  return null;
 }
 
 /** Request headers a customer Worker may see. Cookie, Authorization, CF-* and anything else are dropped. */
@@ -231,23 +257,23 @@ export async function dispatchToWorker(req: Request, worker: string, dispatcher:
 }
 
 export async function serveSite(req: Request, bucket: R2BucketLike, domain?: string, opts: { workersSubdomain?: string; dispatcher?: DispatcherLike; fetcher?: typeof fetch; proxyKeyFor?: (worker: string) => Promise<string | null> } = {}): Promise<Response> {
-  if (opts.dispatcher || opts.workersSubdomain) {
-    const h = parseHost(new URL(req.url).hostname, domain);
-    if (h.kind === "site") {
-      const worker = await resolveServerWorker(bucket, h.label);
-      if (worker) {
-        const key = opts.proxyKeyFor ? await opts.proxyKeyFor(worker) : null;
-        if (opts.dispatcher) return dispatchToWorker(req, worker, opts.dispatcher, { proxyKey: key });
-        return proxyToWorker(req, worker, opts.workersSubdomain!, { fetcher: opts.fetcher, proxyKey: key });
-      }
+  const url = new URL(req.url);
+  const route = await resolveSiteRoute(bucket, url.hostname, domain);
+  if ((opts.dispatcher || opts.workersSubdomain) && route) {
+    const worker = route.worker ?? (route.customHost ? null : await resolveServerWorker(bucket, route.label));
+    if (worker) {
+      const key = opts.proxyKeyFor ? await opts.proxyKeyFor(worker) : null;
+      if (opts.dispatcher) return dispatchToWorker(req, worker, opts.dispatcher, { proxyKey: key });
+      return proxyToWorker(req, worker, opts.workersSubdomain!, { fetcher: opts.fetcher, proxyKey: key });
     }
   }
   if (req.method !== "GET" && req.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { ...BASE_HEADERS, Allow: "GET, HEAD" } });
-  const url = new URL(req.url);
-  const host = parseHost(url.hostname, domain);
-  if (host.kind !== "site") return notFound("Unknown site");
-  const deploymentId = await resolveDeployment(bucket, host.label);
-  if (!deploymentId) return (await isExpiredHost(bucket, host.label)) ? previewExpired(req.headers.get("accept-language")) : notFound("This site has no deployment yet.");
+  if (!route) return notFound("Unknown site");
+  const deploymentId = route.deploymentId ?? (await resolveDeployment(bucket, route.label));
+  if (!deploymentId) {
+    if (!route.customHost && (await isExpiredHost(bucket, route.label))) return previewExpired(req.headers.get("accept-language"));
+    return notFound("This site has no deployment yet.");
+  }
   const path = objectPath(url.pathname);
   if (path === null) return notFound();
   const candidates = path === "" ? ["index.html"] : /\.[a-z0-9]+$/i.test(path) ? [path] : [`${path}.html`, `${path}/index.html`, path];

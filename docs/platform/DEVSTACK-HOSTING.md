@@ -140,3 +140,9 @@ Production GO checklist (owner-approved 2026-11-01):
 | POST | `/api/projects/:id/builds` | container build (archive or imported repo) |
 | POST | `/api/projects/:id/rollback` | promote a prior live deployment to production |
 | POST | `/api/deployments/:id/rollback` | same, keyed by deployment id |
+| GET/POST | `/api/projects/:id/domains` | List / register custom domain (beta) |
+| POST | `/api/projects/:id/domains/:domainId/verify` | TXT check + Workers Custom Domain |
+| DELETE | `/api/projects/:id/domains/:domainId` | Remove domain |
+| GET/PUT | `/api/projects/:id/server-bindings` | Optional SSR Worker bindings (`ai`) |
+
+See [CUSTOM-DOMAINS-HOSTING.md](./CUSTOM-DOMAINS-HOSTING.md).
