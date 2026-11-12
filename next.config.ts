@@ -51,6 +51,7 @@ const nextConfig: NextConfig = {
       },
       { source: "/chat/build", destination: "/chat?mode=build", permanent: true },
       { source: "/chat/dev", destination: "/chat?mode=dev", permanent: true },
+      { source: "/cli", destination: "/docs/cli-setup", permanent: true },
     ];
   },
   async headers() {

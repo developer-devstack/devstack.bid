@@ -74,7 +74,7 @@ const NOW: [typeof FolderGit2, DictKey, DictKey, string][] = [
   [Bot, "home.now.ai.t", "home.now.ai.b", "/chat"],
   [GitBranch, "home.now.git.t", "home.now.git.b", "/projects"],
   [KeyRound, "home.now.signin.t", "home.now.signin.b", "/login"],
-  [Terminal, "home.now.cli.t", "home.now.cli.b", "/cli"],
+  [Terminal, "home.now.cli.t", "home.now.cli.b", "/docs/cli-setup"],
 ];
 const FAQ: [DictKey, DictKey][] = [
   ["home.faq2.q1", "home.faq2.a1"],
@@ -142,7 +142,7 @@ export default function Home() {
                     </div>
                   </pre>
                   {/* Decorative mascot resting in the empty bottom-right corner of the code window. */}
-                  <Mascot size={96} interactive className="hero-mascot absolute bottom-2 right-2 max-sm:h-[64px]! max-sm:w-[64px]! sm:bottom-3 sm:right-4" />
+                  <Mascot size={96} interactive className="hero-mascot absolute bottom-2 right-2 hidden sm:block sm:bottom-3 sm:right-4" />
                 </Card>
           </div>
         </div>

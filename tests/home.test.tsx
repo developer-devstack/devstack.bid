@@ -40,6 +40,7 @@ describe("home page (v0.9 phase 2)", () => {
     for (const s of ["Import a GitHub repo", "15.5.28", "20 AI requests and 10 builds per day", "internal pilot", "npx devstack-bid"]) expect(text).toContain(s);
     expect(text).not.toMatch(/ready to copy|setup\.sh/);
     expect(screen.getAllByRole("link", { name: /Start a new project/ })[0].getAttribute("href")).toBe("/new");
+    expect(screen.getByRole("link", { name: /CLI on npm/ }).getAttribute("href")).toBe("/docs/cli-setup");
   });
 
   it("live example matches the owner's reference sandbox shape", () => {
