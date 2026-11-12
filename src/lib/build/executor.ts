@@ -88,7 +88,7 @@ export async function startContainerBuild(
   if (missing.length) throw new ServiceError("blocked", `Build executor not provisioned (missing: ${missing.join(", ")}). / ยังไม่ได้เปิดระบบ build`, 503);
   const slug = siteSlug(project.slug || project.name);
   if (!slug) throw new ServiceError("invalid", "Project name cannot be used as a site hostname.", 422);
-  const archiveMode = !project.repo_full_name;
+  const archiveMode = !project.repo_full_name || project.source === "cursor_import" || project.source === "hosted";
   if (archiveMode && !b.sites) throw new ServiceError("blocked", "R2 SITES binding is not provisioned for hosted source builds.", 503);
 
   // Tier limits apply to every trigger (manual, import, AI turn, webhook): resolved from the user's stable id.
@@ -229,7 +229,7 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
 
   if (!project || !dep) return fail("invalid_config", "Project or deployment no longer exists.");
   const cfgSource = (cfg as BuildSpecSettings & { slug: string; source?: string }).source;
-  const archiveMode = cfgSource === "archive" || !project.repo_full_name;
+  const archiveMode = cfgSource === "archive" || !project.repo_full_name || project.source === "cursor_import" || project.source === "hosted";
   const conn = archiveMode ? null : await db.prepare("SELECT private FROM project_connections WHERE project_id = ?1 AND provider = 'github'").bind(job.project_id).first<{ private: number }>().catch(() => null);
   // GitHub mode only: public repositories clone without a token; private ones need the owner's connection.
   if (!archiveMode) {

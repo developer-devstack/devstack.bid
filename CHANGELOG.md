@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Import from Cursor (Origin):** after **Sign in with Cursor**, `/new` → **Import Cursor** lists repos granted to the DevStack Origin app (`GET /api/cursor/repositories`), snapshots via Origin tarball to R2, and queues a production build (`POST /api/projects/import-cursor`). Stores `installation_id` in D1 (`cursor_installations`, migration `0025`). Requires `CURSOR_APP_SIGNING_KEY` (Ed25519 app signing key) on the Worker in addition to `CURSOR_APP_ID`. Cursor install scope now requests `repository:contents:read` for deploy snapshots.
+
 ### Changed
 - **Production deploy** (account `2d92bd5b…`): Worker version `3faa0b9e-e07c-42a8-ba6d-7b46a8393f50` — custom-domain + server-bindings APIs ship-dark (`CUSTOM_DOMAINS_ENABLED=false`).
 

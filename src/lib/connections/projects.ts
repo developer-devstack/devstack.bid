@@ -63,8 +63,18 @@ export const projectView = (p: ProjectRow) => ({
   templateId: p.template_id,
   repo: p.repo_full_name,
   defaultBranch: p.default_branch,
-  repoUrl: p.repo_full_name ? `https://github.com/${p.repo_full_name}` : null,
-  source: p.repo_full_name ? ("github" as const) : p.source === "hosted" ? ("hosted" as const) : ("upload" as const),
+  repoUrl: p.repo_full_name
+    ? `https://github.com/${p.repo_full_name}`
+    : p.source === "cursor_import"
+      ? null
+      : null,
+  source: p.source === "cursor_import"
+    ? ("cursor" as const)
+    : p.repo_full_name
+      ? ("github" as const)
+      : p.source === "hosted"
+        ? ("hosted" as const)
+        : ("upload" as const),
   origin: p.source ?? "legacy",
   slug: p.slug ?? null,
   rootDirectory: p.root_directory ?? "",
