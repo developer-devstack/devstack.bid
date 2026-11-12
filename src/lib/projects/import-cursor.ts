@@ -11,7 +11,7 @@ import type { ProjectRow } from "@/lib/connections/projects";
 import { putProjectSource } from "@/lib/hosting/sources";
 import { readTar, type TarFile } from "@/lib/build/tar";
 import { assertSlugUsable } from "./slug-gate";
-import { candidateRoots, detectFramework, underRoot, validateBuildConfig, validateRootDirectory, validateSlug, type FrameworkPreset } from "./config";
+import { detectFramework, underRoot, validateBuildConfig, validateRootDirectory, validateSlug, type FrameworkPreset } from "./config";
 
 export const CURSOR_SOURCE = "cursor_import";
 
