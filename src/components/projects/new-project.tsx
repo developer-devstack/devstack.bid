@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderGit2, GitBranch, Lock, RefreshCw, Search } from "lucide-react";
+import { Bot, FolderGit2, GitBranch, Lock, RefreshCw, Search } from "lucide-react";
 import { Badge, buttonClasses, Card, EmptyState, Input, Label, Segmented, Select, Skeleton, Spinner } from "@/components/ui";
 import { useLang } from "@/components/prefs";
 import { UploadZipPanel } from "./upload-zip-panel";
@@ -12,9 +12,9 @@ type Repo = { id: number; fullName: string; owner: string; private: boolean; def
 type Framework = { id: string; label: string; install: string | null; build: string | null; output: string | null };
 type Inspect = { repo: string; private: boolean; defaultBranch: string; ref: string; branches: string[]; roots: string[]; root: string; framework: Framework; truncated: boolean };
 type ListState = { kind: "loading" } | { kind: "ok"; repos: Repo[]; hasMore: boolean; page: number } | { kind: "reauth"; message: string } | { kind: "denied"; message: string } | { kind: "error"; message: string };
-type Mode = "git" | "upload" | "template";
+type Mode = "git" | "cursor" | "upload" | "template";
 
-const MODES: readonly Mode[] = ["git", "upload", "template"];
+const MODES: readonly Mode[] = ["git", "cursor", "upload", "template"];
 export function isMode(v: string | null): v is Mode {
   return v !== null && (MODES as readonly string[]).includes(v);
 }
@@ -61,18 +61,137 @@ export function NewProject({ templates, initialMode }: { templates: TemplateOpti
     if (m === "git") u.searchParams.delete("mode"); else u.searchParams.set("mode", m);
     history.replaceState(history.state, "", `${u.pathname}${u.search}${u.hash}`);
   }, []);
+
+  useEffect(() => {
+    let on = true;
+    fetch("/api/cursor/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { canList?: boolean } | null) => {
+        if (!on || !s?.canList || isMode(initialMode ?? null)) return;
+        setModeState("cursor");
+      })
+      .catch(() => undefined);
+    return () => { on = false; };
+  }, [initialMode]);
+
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
       <h1 className="text-2xl font-semibold tracking-tight text-fg">{th ? "สร้างโปรเจกต์ใหม่" : "New Project"}</h1>
       <p className="mt-1 text-sm text-subtle">{th ? "นำเข้า repo ที่มีอยู่ อัปโหลดไฟล์ หรือเริ่มจากเทมเพลต แล้ว deploy ไปยัง Cloudflare ของคุณ" : "Import an existing repository, upload files, or start from a template, then deploy to your Cloudflare account."}</p>
       <div className="mt-6">
         <Segmented<Mode> legend={th ? "วิธีเริ่มต้น" : "How to start"} hideLegend value={mode} onChange={setMode}
-          options={[{ value: "git", label: th ? "นำเข้า Git" : "Import Git" }, { value: "upload", label: th ? "อัปโหลดไฟล์" : "Upload files" }, { value: "template", label: th ? "เทมเพลต" : "Template" }]} />
+          options={[
+            { value: "git", label: th ? "นำเข้า GitHub" : "Import GitHub" },
+            { value: "cursor", label: th ? "นำเข้า Cursor" : "Import Cursor" },
+            { value: "upload", label: th ? "อัปโหลดไฟล์" : "Upload files" },
+            { value: "template", label: th ? "เทมเพลต" : "Template" },
+          ]} />
       </div>
       {mode === "git" && <ImportGit th={th} />}
+      {mode === "cursor" && <ImportCursor th={th} />}
       {mode === "upload" && <UploadZipPanel onDone={(id) => { location.href = `/projects/${encodeURIComponent(id)}`; }} />}
       {mode === "template" && <FromTemplate th={th} templates={templates} />}
     </div>
+  );
+}
+
+function cursorConnectHref(): string {
+  return `/api/auth/cursor?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
+}
+
+function ImportCursor({ th }: { th: boolean }) {
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [list, setList] = useState<ListState>({ kind: "loading" });
+  const [picked, setPicked] = useState<Repo | null>(null);
+  const [name, setName] = useState("");
+  const [branch, setBranch] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const fetchList = useCallback(async (): Promise<ListState> => {
+    try {
+      const r = await getJson(`/api/cursor/repositories?q=${encodeURIComponent(query)}&page=${page}`);
+      if (r.ok) return { kind: "ok", repos: (r.body.repos as Repo[]) ?? [], hasMore: Boolean(r.body.hasMore), page };
+      if (r.body.code === "reauth" || r.body.code === "unconfigured" || r.body.code === "unauthorized") return { kind: "reauth", message: r.body.error ?? "" };
+      if (r.status === 403) return { kind: "denied", message: r.body.error ?? "" };
+      return { kind: "error", message: r.body.error ?? "Request failed" };
+    } catch (e) { return { kind: "error", message: e instanceof Error ? e.message : String(e) }; }
+  }, [query, page]);
+
+  useEffect(() => {
+    let on = true;
+    fetchList().then((x) => on && setList(x));
+    return () => { on = false; };
+  }, [fetchList]);
+
+  if (picked) {
+    const defBranch = branch || picked.defaultBranch;
+    return (
+      <Card className="mt-6 p-5">
+        <h2 className="text-base font-semibold text-fg">{th ? "นำเข้าจาก Cursor Origin" : "Import from Cursor Origin"}</h2>
+        <p className="mt-1 font-mono text-sm text-subtle">{picked.fullName}</p>
+        {err && <p role="alert" className={alertCls}>{err}</p>}
+        <form
+          className="mt-4 grid gap-4 sm:grid-cols-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true); setErr("");
+            const r = await getJson("/api/projects/import-cursor", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ repo: picked.fullName, repoId: String(picked.id), branch: defBranch, name, build: { framework: "unknown", installCommand: "npm ci", buildCommand: "npm run build", outputDirectory: "dist", nodeVersion: "22" } }),
+            }).catch((x: unknown) => ({ ok: false, status: 0, body: { error: String(x) } as Record<string, unknown> & { error?: string } }));
+            setBusy(false);
+            if (!r.ok) { setErr(r.body.error ?? "Import failed"); return; }
+            location.href = `/projects/${encodeURIComponent((r.body.project as { id: string }).id)}`;
+          }}
+        >
+          <div className="sm:col-span-2"><Label htmlFor="cp-name">{th ? "ชื่อโปรเจกต์" : "Project name"}</Label><Input id="cp-name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={63} pattern={SLUG_PATTERN} className="font-mono" /></div>
+          <div className="sm:col-span-2"><Label htmlFor="cp-branch">Branch</Label><Input id="cp-branch" value={defBranch} onChange={(e) => setBranch(e.target.value)} className="font-mono" maxLength={200} /></div>
+          <div className="sm:col-span-2 flex flex-wrap gap-2">
+            <button type="button" onClick={() => setPicked(null)} className={buttonClasses("ghost", "sm")}>{th ? "เปลี่ยน repo" : "Change repo"}</button>
+            <button type="submit" disabled={busy || !name} className={buttonClasses("primary", "md")}>{busy ? (th ? "กำลังนำเข้าและ deploy..." : "Importing & deploying...") : (th ? "นำเข้าและ deploy" : "Import & deploy")}</button>
+          </div>
+        </form>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mt-6 p-5">
+      <h2 className="text-base font-semibold text-fg">{th ? "เลือก repo บน Cursor Origin" : "Choose a Cursor Origin repository"}</h2>
+      <p className="mt-1 text-sm text-subtle">{th ? "ใช้การติดตั้ง DevStack บน Cursor ที่คุณอนุมัติตอนล็อกอิน — ไม่ต้อง Connect GitHub" : "Uses the DevStack Origin app you approved when signing in with Cursor — no separate GitHub connect."}</p>
+      <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); setList({ kind: "loading" }); setPage(1); setQuery(q); }}>
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
+          <Input aria-label={th ? "ค้นหา repo" : "Search repositories"} value={q} onChange={(e) => setQ(e.target.value)} placeholder={th ? "ค้นหา..." : "Search..."} className="pl-9" maxLength={100} />
+        </div>
+        <button type="submit" className={buttonClasses("secondary", "md")}>{th ? "ค้นหา" : "Search"}</button>
+      </form>
+      <div className="mt-4" aria-live="polite">
+        {list.kind === "loading" && <div className="space-y-2">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>}
+        {list.kind === "reauth" && (
+          <EmptyState title={th ? "ล็อกอิน Cursor" : "Sign in with Cursor"} description={list.message || (th ? "ล็อกอินด้วย Cursor และเลือก repo ที่อนุญาตให้ DevStack" : "Sign in with Cursor and grant DevStack access to your repositories.")}
+            action={<a href={cursorConnectHref()} className={buttonClasses("primary", "md")}><Bot className="h-4 w-4" aria-hidden />{th ? "ล็อกอิน Cursor" : "Sign in with Cursor"}</a>} />
+        )}
+        {list.kind === "denied" && <p role="alert" className={alertCls}>{list.message}</p>}
+        {list.kind === "error" && <p role="alert" className={alertCls}>{list.message}</p>}
+        {list.kind === "ok" && list.repos.length === 0 && <EmptyState title={th ? "ยังไม่มี repo" : "No repositories"} description={th ? "ติดตั้งแอป DevStack บน cursor.com/codebase แล้วเลือก repo" : "Install DevStack from cursor.com/codebase and select repositories."} />}
+        {list.kind === "ok" && list.repos.length > 0 && (
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {list.repos.map((r) => (
+              <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+                <Bot className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+                <span className="min-w-0 truncate font-medium text-fg" title={r.fullName}>{r.fullName}</span>
+                {r.private && <Badge variant="outline"><Lock className="mr-1 h-3 w-3" aria-hidden />{th ? "ส่วนตัว" : "Private"}</Badge>}
+                <button type="button" onClick={() => { setPicked(r); setName(suggestName(r.fullName.split("/")[1])); setBranch(r.defaultBranch); }} className={`${buttonClasses("primary", "sm")} ml-auto`}>{th ? "เลือก" : "Select"}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 }
 

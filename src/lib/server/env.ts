@@ -83,6 +83,8 @@ const schema = z.object({
     .regex(/^app_[A-Za-z0-9]{6,80}$/)
     .optional()
     .catch(undefined),
+  /** Ed25519 PKCS#8 (PEM or base64) for Origin App JWTs — required to list/import Cursor repos after sign-in. */
+  CURSOR_APP_SIGNING_KEY: z.string().trim().min(32).optional().catch(undefined),
   /** Vercel AI Gateway key for the model picker on /chat. Requests use provider/model ids. */
   AI_GATEWAY_API_KEY: z
     .string()
@@ -114,7 +116,7 @@ export function serverEnv(source: Record<string, string | undefined> = process.e
   if (cached && KEYS.every((k) => cached!.source[k] === source[k])) return cached.env;
   const raw = Object.fromEntries(KEYS.map((k) => [k, source[k] === "" ? undefined : source[k]]));
   const env = schema.parse(raw);
-  const secrets = new Set<keyof ServerEnv>(["OPENAI_API_KEY", "HF_TOKEN", "GITHUB_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "AI_GATEWAY_API_KEY", "CHAT_PROXY_KEY"]);
+  const secrets = new Set<keyof ServerEnv>(["OPENAI_API_KEY", "HF_TOKEN", "GITHUB_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET", "AI_GATEWAY_API_KEY", "CHAT_PROXY_KEY", "CURSOR_APP_SIGNING_KEY"]);
   const invalid: string[] = KEYS.filter((k) => raw[k] !== undefined && !secrets.has(k) && String(env[k]) !== String(raw[k]).trim());
   for (const k of secrets) if (raw[k] !== undefined && !env[k]) invalid.push(k);
   if (invalid.length) console.warn(`[env] ignoring invalid values for: ${invalid.join(", ")} (using defaults)`);

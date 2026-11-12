@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Import from Cursor (Origin):** after **Sign in with Cursor**, `/new` → **Import Cursor** lists repos granted to the DevStack Origin app (`GET /api/cursor/repositories`), snapshots via Origin tarball to R2, and queues a production build (`POST /api/projects/import-cursor`). Stores `installation_id` in D1 (`cursor_installations`, migration `0025`). Requires `CURSOR_APP_SIGNING_KEY` (Ed25519 app signing key) on the Worker in addition to `CURSOR_APP_ID`. Cursor install scope now requests `repository:contents:read` for deploy snapshots.
+
 ### Fixed
 - **Home CLI card:** `/cli` (404) now links to `/docs/cli-setup`; permanent redirect from `/cli` for old bookmarks.
 - **Login:** do not duplicate the Turnstile message when `?auth=captcha` is already shown.

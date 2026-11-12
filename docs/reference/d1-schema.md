@@ -30,6 +30,16 @@ Reference ของทุกตารางในฐานข้อมูล D1 
 Constraint: `auth_provider` กับ `auth_subject` ต้องเป็น null พร้อมกันหรือมีค่าพร้อมกัน
 Index: `users_auth_identity_uq` (unique: `auth_provider`, `auth_subject`), `users_email_idx` (`email`, เฉพาะแถวที่มี email)
 
+## `cursor_installations` (0025)
+
+| คอลัมน์ | ชนิด | หมายเหตุ |
+| --- | --- | --- |
+| `user_id` | TEXT PK → `users.id` | ผู้ใช้ที่ล็อกอินด้วย Cursor |
+| `installation_id` | TEXT | Origin installation id จากใบเสร็จติดตั้ง (`i_…`) |
+| `updated_at` | INTEGER | ms |
+
+ใช้ mint installation access token เพื่อ `GET /api/cursor/repositories` และนำเข้า repo ผ่าน Origin tarball
+
 ## `github_credentials` (0006)
 
 | คอลัมน์ | ชนิด | null | ค่าเริ่มต้น | หมายเหตุ |

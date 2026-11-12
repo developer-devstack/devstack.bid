@@ -6,6 +6,7 @@ import { oauthFail, readOAuthState, signedInRedirect } from "@/lib/auth/oauth-fl
 import { chatEnv } from "@/lib/chat/config";
 import { OAUTH_STATE_COOKIE, readCookie } from "@/lib/chat/identity";
 import { chatRuntime } from "@/lib/chat/runtime";
+import { saveCursorInstallation } from "@/lib/auth/cursor-installation";
 import { saveOAuthAccount } from "@/lib/chat/store";
 import { serverEnv } from "@/lib/server/env";
 import { clientIp } from "@/lib/server/http";
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
       email: identity.email,
       avatarUrl: null,
     });
+    await saveCursorInstallation(db, plan.userId, identity.installationId);
     console.warn(JSON.stringify({ at: "api/auth/cursor", event: "linked" }));
     return signedInRedirect(url.origin, secure, opened.next, await issueSession(db, plan.userId, secret));
   } catch (err) {

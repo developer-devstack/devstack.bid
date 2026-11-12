@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const { state, cookie } = await issueOAuthState(chat.CHAT_COOKIE_SECRET, "cursor", next);
   const authorize = new URL("https://cursor.com/codebase/apps/install");
   authorize.searchParams.set("client_id", server.CURSOR_APP_ID);
-  authorize.searchParams.set("scope", "repository:metadata:read");
+  authorize.searchParams.set("scope", "repository:metadata:read repository:contents:read");
   authorize.searchParams.set("redirect_uri", `${url.origin}/api/auth/cursor/callback`);
   authorize.searchParams.set("state", state);
   authorize.searchParams.set("summary", "Sign in to DevStack");
