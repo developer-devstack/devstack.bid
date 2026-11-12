@@ -45,6 +45,7 @@ export function LoginForm({ next, auth, provider, turnstileSiteKey = "" }: { nex
   const { t, lang } = useLang();
   const [captcha, setCaptcha] = useState<string | null>(null);
   const alert = notice(auth, provider);
+  const urlShowsCaptcha = alert?.title === "auth.captchaTitle";
   const [pending, setPending] = useState<string | null>(null);
   const [problem, setProblem] = useState<DictKey | null>(null);
   // Controlled so the typed password survives any re-render, and the length is visible while typing.
@@ -120,7 +121,7 @@ export function LoginForm({ next, auth, provider, turnstileSiteKey = "" }: { nex
       >
         <h2 className="text-base font-semibold text-fg">{t("auth.ownHeading")}</h2>
         <div aria-live="assertive">
-          {problem && (
+          {problem && !(problem === "auth.captcha" && urlShowsCaptcha) && (
             <p role="alert" data-testid="login-problem" className="rounded-lg border border-fg/40 px-3 py-2 text-sm text-fg">
               {t(problem)}
             </p>
