@@ -13,7 +13,7 @@ import { HttpError, readJsonBody } from "@/lib/server/http";
 /** POST /api/projects/import-cursor — snapshot an Origin repo to R2 and queue a production build. */
 export async function POST(req: Request) {
   await connection();
-  const a = await gate(req, { write: true, burstKey: "proj-import-cursor", perMinute: 4, bearer: true });
+  const a = await gate(req, { write: true, burstKey: "proj-import-cursor", perMinute: 4 });
   if (isResponse(a)) return a;
   const account = await getAccount(a.db, a.uid);
   if (account?.provider !== "cursor") return json({ error: "Sign in with Cursor first.", code: "reauth" }, 401);
