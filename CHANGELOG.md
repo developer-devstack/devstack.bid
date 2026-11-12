@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Production deploy** (account `2d92bd5b…`): Worker version `3faa0b9e-e07c-42a8-ba6d-7b46a8393f50` — custom-domain + server-bindings APIs ship-dark (`CUSTOM_DOMAINS_ENABLED=false`).
+
 ### Added
 - **Rollout runbook:** `docs/operations/CUSTOM-DOMAINS-ROLLOUT.md` (phases 0–6; code on `main`; remote D1 + deploy pending owner credentials).
 - **DevStack hosting — custom domains (beta):** `POST/GET /api/projects/:id/domains`, `POST …/domains/:id/verify`, `DELETE …/domains/:id`. TXT `_devstack-challenge.<hostname>` verification, Workers Custom Domain on router `devstack-sites`, R2 `custom-hosts/<hostname>.json` routing. Project page UI under deploy panels.

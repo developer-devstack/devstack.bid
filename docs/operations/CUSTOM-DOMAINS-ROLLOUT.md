@@ -1,6 +1,6 @@
 # Custom domain + server bindings — rollout runbook
 
-สถานะรวม: **Phase 0–1 เสร็จ** · **D1 0024 บน production ✅** (apply 2026-11-11, `schema_version=24`) · **Phase 3 deploy รอ** — token ใน shell ต้องเป็นบัญชี `2d92bd5b…` ไม่ใช่ token อื่นที่ pod inject ทับ secrets
+สถานะรวม: **Phase 0–3 เสร็จ** (deploy 2026-11-12) · Worker version **`3faa0b9e-e07c-42a8-ba6d-7b46a8393f50`** · D1 0024 ✅ · `CUSTOM_DOMAINS_ENABLED=false` (ship-dark) · Phase 4 pilot รอ smoke ภายใน
 
 อ้างอิงทรัพยากร: [CUSTOM-DOMAINS-CAPACITY-200.md](./CUSTOM-DOMAINS-CAPACITY-200.md) · ฟีเจอร์: [../platform/CUSTOM-DOMAINS-HOSTING.md](../platform/CUSTOM-DOMAINS-HOSTING.md)
 
