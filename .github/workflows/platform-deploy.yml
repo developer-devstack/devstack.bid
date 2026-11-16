@@ -1,0 +1,57 @@
+# Deploy the DevStack site Worker (nvx-stack-builder → devstack.bid). Not customer *.devstack.bid projects.
+name: Platform deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy Worker nvx-stack-builder (OpenNext)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy
+      - name: Smoke test devstack.bid
+        run: |
+          set -euo pipefail
+          BASE=https://devstack.bid
+          for p in / /about /templates /login; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$p")
+            echo "$p -> $code"
+            test "$code" = "200" -o "$code" = "307" -o "$code" = "308"
+          done
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/templates/does-not-exist")
+          echo "404 check -> $code"
+          test "$code" = "404"
+      - name: Record Worker version (for rollback)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "## Latest deployments" >> "$GITHUB_STEP_SUMMARY"
+          npx wrangler deployments list --name nvx-stack-builder 2>/dev/null | head -n 8 >> "$GITHUB_STEP_SUMMARY" || true

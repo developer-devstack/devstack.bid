@@ -28,7 +28,9 @@
 | [`public/_headers`](../../public/_headers) | headers ของ static assets บน Workers (รวม cache ของ `/brand/*`) |
 | [`public/brand/`](../../public/brand/), [`public/icon-192.png`](../../public/icon-192.png), [`public/icon-512.png`](../../public/icon-512.png), [`public/icon-maskable-512.png`](../../public/icon-maskable-512.png) | โลโก้ ภาพตัวมาสคอต และไอคอนของ web manifest (สร้างด้วยสคริปต์ ห้ามแก้มือ) |
 | [`assets/brand/nvx-logo-master.png`](../../assets/brand/nvx-logo-master.png), [`assets/brand/nvx-mascot-body.png`](../../assets/brand/nvx-mascot-body.png) | ต้นฉบับโลโก้พื้นใส 1024px และภาพตัวที่ลบตาออก |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | CI: lint, typecheck, test, docs:check |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | CI: lint, typecheck, test, docs:check, build, cf:build |
+| [`.github/workflows/platform-deploy.yml`](../../.github/workflows/platform-deploy.yml) | Deploy Worker `nvx-stack-builder` after CI on main |
+| [docs/operations/github-actions.md](../operations/github-actions.md) | ตั้ง GitHub secrets + flow |
 | [`.github/workflows/jekyll-gh-pages.yml`](../../.github/workflows/jekyll-gh-pages.yml) | GitHub Pages (Jekyll). ทุก action ปักเป็น commit SHA ตามนโยบายองค์กร. deploy เฉพาะ `main` |
 
 ## `src/app` — routes

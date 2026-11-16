@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -22,6 +26,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run docs:check
-      # Production build (next build + prebuild docs/studio). Catches prerender errors that
-      # lint/typecheck/tests miss (e.g. /projects/[id] on 2026-10-15). No deploy, no secrets.
       - run: npm run build
+      - run: npm run cf:build

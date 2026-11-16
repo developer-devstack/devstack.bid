@@ -9,6 +9,10 @@
 - **ห้ามแก้หรือลบ Worker/resource อื่น** ในบัญชี (เช่น `agents-sdk-space`, `agent-starter`, `mcp-worker` ฯลฯ) และห้ามแตะ zone `agents-sdk.space`
 - ห้าม `git push` ถ้าไม่ได้รับคำสั่ง ห้ามพิมพ์ secret
 
+## GitHub Actions (ทางเลือก)
+
+เมื่อตั้ง secrets `CLOUDFLARE_API_TOKEN` และ `CLOUDFLARE_ACCOUNT_ID` ใน repo แล้ว workflow [github-actions.md](./github-actions.md) จะรัน `npm run deploy` อัตโนมัติหลัง CI เขียวบน `main` การ deploy ด้วยมือจากเครื่องยังใช้ขั้นตอนด้านล่างได้
+
 ## ขั้นตอนโดยสรุป
 
 1. **ตรวจโค้ด**: `npm run lint && npm run typecheck && npm test && npm run docs:check && npm run cf:build`

@@ -12,7 +12,7 @@ No push, deploy, remote migration, DNS or production change was made.
 | Hosting | Cloudflare Workers via `@opennextjs/cloudflare` (`open-next.config.ts`, `scripts/patch-opennext.mjs` postinstall patch + `check-opennext-patch.mjs`) |
 | wrangler.jsonc | Worker `nvx-stack-builder`, custom domains `devstack.bid`/`www`, `preview_urls: false`, `workers_dev: true` |
 | Bindings | `DB` (D1 `nvx-db`, 12 migrations), `CHAT_STREAMS` (R2 `nvx-chat-streams`), `CREDENTIALS_KEY` (Secrets Store), `AI`, `ASSETS`, `WORKER_SELF_REFERENCE`, 5 rate limiters. **No Queues, no Durable Objects, no Containers, no R2 bucket for build artifacts.** |
-| CI | `.github/workflows/ci.yml`: lint, typecheck, test, docs:check, `next build` on push to main + PRs. No deploy, no secrets. `jekyll-gh-pages.yml` unrelated. |
+| CI | `.github/workflows/ci.yml`: lint, typecheck, test, docs:check, `build`, `cf:build` on push to main + PRs. `.github/workflows/platform-deploy.yml` deploys `nvx-stack-builder` after green CI on main (needs `CLOUDFLARE_*` secrets). `jekyll-gh-pages.yml` unrelated. |
 
 ## 2. What already exists (read from code)
 
