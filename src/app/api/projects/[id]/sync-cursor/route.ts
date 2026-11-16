@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { cursorInstallToken, loadCursorOriginServer } from "@/lib/auth/cursor-origin-server";
 import { json } from "@/lib/chat/runtime";
 import { serviceErrorBody } from "@/lib/connections/github-service";
-import { loadOwnedProject } from "@/lib/connections/projects";
+import { getProject } from "@/lib/connections/projects";
 import { gate, isResponse } from "@/lib/connections/route-kit";
 import { routeBuildBindings } from "@/lib/build/bindings";
 import { startContainerBuild } from "@/lib/build/executor";
@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (isResponse(a)) return a;
   const srv = await loadCursorOriginServer(a.db, a.uid);
   if (!srv) return json({ error: "Cursor installation missing. Sign in with Cursor again.", code: "reauth" }, 401);
-  const project = await loadOwnedProject(a.db, a.uid, id);
+  const project = await getProject(a.db, a.uid, id);
   if (!project) return json({ error: "Project not found.", code: "not_found" }, 404);
   let body: Record<string, unknown> = {};
   try {
