@@ -244,6 +244,17 @@ export async function saveOAuthAccount(db: D1Like, plan: AccountPlanRow, profile
   await db.batch(stmts);
 }
 
+/** Attach or refresh a GitHub OAuth token without changing the user’s primary sign-in provider. */
+export async function saveGithubCredentialLink(db: D1Like, userId: string, credential: { tokenEnc: string; scope: string }): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO github_credentials (user_id, token_enc, scope) VALUES (?1, ?2, ?3)
+       ON CONFLICT (user_id) DO UPDATE SET token_enc = excluded.token_enc, scope = excluded.scope, updated_at = unixepoch('subsec') * 1000`,
+    )
+    .bind(userId, credential.tokenEnc, credential.scope)
+    .run();
+}
+
 export interface PasswordRow {
   userId: string;
   hash: string;

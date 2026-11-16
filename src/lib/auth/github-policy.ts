@@ -60,7 +60,7 @@ export function safeNext(raw: string | null | undefined, fallback = "/chat"): st
 /** Link that starts GitHub OAuth and comes back to `returnTo` (same-origin path + query). */
 export function githubConnectHref(returnTo: string, scope?: "public"): string {
   const next = safeNext(returnTo, "/");
-  return `/api/auth/github?${scope ? `scope=${scope}&` : ""}next=${encodeURIComponent(next)}`;
+  return `/api/auth/github?link=1&${scope ? `scope=${scope}&` : ""}next=${encodeURIComponent(next)}`;
 }
 
 const PATH_RE = /^[A-Za-z0-9][A-Za-z0-9._@~/-]{0,199}$/;
