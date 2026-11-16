@@ -9,6 +9,7 @@ import { DeployButtonPanel } from "./deploy-button-panel";
 import { DirectDeployPanel } from "./direct-deploy-panel";
 import { ProjectDetail } from "./project-detail";
 import { ProjectHostingExtras } from "./project-hosting-extras";
+import { ProjectEnvPanel } from "./project-env-panel";
 
 /** Composes the project page; deploy panels plug in here. */
 export function ProjectPage({ id }: { id: string }) {
@@ -24,6 +25,7 @@ export function ProjectPage({ id }: { id: string }) {
                 <Download className="h-4 w-4" aria-hidden />Download deploy zip
               </a>
             )}
+            <ProjectEnvPanel projectId={p.id} />
             <ProjectHostingExtras projectId={p.id} />
             <Credits items={creditsFor(x.profile.id)} className="mt-6" />
           </>
