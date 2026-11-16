@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Home hero:** hide the decorative mascot on narrow viewports so it does not cover the sample deploy URL in the terminal card.
 
 ### Changed
-- **Production deploy** (account `2d92bd5b…`): Worker version `3faa0b9e-e07c-42a8-ba6d-7b46a8393f50` — custom-domain + server-bindings APIs ship-dark (`CUSTOM_DOMAINS_ENABLED=false`).
+- **Production deploy** (account `2d92bd5b…`): Worker version `60c075a6-ecf3-48c0-a762-2ecbf205f4eb` (2026-11-16) — project env secrets, GitHub `link=1`, Cursor sync/import metadata; D1 migration `0025_cursor_installations` applied on remote. Prior: `3faa0b9e-e07c-42a8-ba6d-7b46a8393f50`.
 
 ### Added
 - **Rollout runbook:** `docs/operations/CUSTOM-DOMAINS-ROLLOUT.md` (phases 0–6; code on `main`; remote D1 + deploy pending owner credentials).
