@@ -18,7 +18,8 @@ export async function GET(req: Request) {
   if (!server.GITHUB_CLIENT_ID || !server.GITHUB_CLIENT_SECRET || !chat.CHAT_COOKIE_SECRET) return oauthFail(url.origin, secure, "missing", "github", next);
   const burst = await checkRateLimit("NVX_CHAT_LIMITER", `auth:${clientIp(req)}`, 10);
   if (!burst.ok) return oauthFail(url.origin, secure, "error", "github", next);
-  const { state, cookie } = await issueOAuthState(chat.CHAT_COOKIE_SECRET, "github", next);
+  const link = url.searchParams.get("link") === "1";
+  const { state, cookie } = await issueOAuthState(chat.CHAT_COOKIE_SECRET, "github", next, undefined, link);
   const authorize = new URL("https://github.com/login/oauth/authorize");
   authorize.searchParams.set("client_id", server.GITHUB_CLIENT_ID);
   authorize.searchParams.set("redirect_uri", `${url.origin}/api/auth/github/callback`);

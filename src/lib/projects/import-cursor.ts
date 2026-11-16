@@ -82,17 +82,18 @@ export async function importCursorRepo(
     ? { ...cfgV.config, framework: framework.id, installCommand: cfgV.config.installCommand || framework.install, buildCommand: cfgV.config.buildCommand || framework.build, outputDirectory: cfgV.config.outputDirectory || framework.output || "dist" }
     : cfgV.config;
 
+  const repoId = typeof body.repoId === "string" && body.repoId.trim() ? body.repoId.trim() : null;
   const id = crypto.randomUUID();
   const now = Date.now();
   if (sites) await putProjectSource(sites, id, files);
 
   await db.batch([
     db.prepare(
-      "INSERT INTO projects (id, user_id, name, template_id, repo_full_name, default_branch, slug, source, root_directory, framework, install_command, build_command, output_directory, node_version, production_branch, provider, updated_at) VALUES (?1, ?2, ?3, NULL, NULL, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, '22', ?4, 'devstack-sites', ?12)",
-    ).bind(id, uid, slugV.slug, branch, slugV.slug, CURSOR_SOURCE, root, c.framework, c.installCommand, c.buildCommand, c.outputDirectory, now),
+      "INSERT INTO projects (id, user_id, name, template_id, repo_full_name, default_branch, slug, source, root_directory, framework, install_command, build_command, output_directory, node_version, production_branch, provider, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, '22', ?5, 'devstack-sites', ?13)",
+    ).bind(id, uid, slugV.slug, fullName, branch, slugV.slug, CURSOR_SOURCE, root, c.framework, c.installCommand, c.buildCommand, c.outputDirectory, now),
     db.prepare(
       "INSERT INTO project_connections (id, project_id, user_id, provider, installation_id, repo_id, repo_full_name, private, can_push) VALUES (?1, ?2, ?3, 'cursor', NULL, ?4, ?5, ?6, 0)",
-    ).bind(crypto.randomUUID(), id, uid, null, fullName, 0),
+    ).bind(crypto.randomUUID(), id, uid, repoId, fullName, 0),
   ]).catch((e: unknown) => {
     if (/UNIQUE/i.test(String((e as Error)?.message)) && /slug/i.test(String((e as Error)?.message))) {
       throw new ServiceError("conflict", `Project name "${slugV.slug}" is already used.`, 409);
@@ -102,7 +103,7 @@ export async function importCursorRepo(
 
   await audit(db, uid, "project.imported", `cursor:${fullName}${root ? `/${root}` : ""}@${branch}`);
   return {
-    id, user_id: uid, name: slugV.slug, template_id: null, repo_full_name: null, default_branch: branch, created_at: now,
+    id, user_id: uid, name: slugV.slug, template_id: null, repo_full_name: fullName, default_branch: branch, created_at: now,
     slug: slugV.slug, source: CURSOR_SOURCE, root_directory: root, framework: c.framework, install_command: c.installCommand,
     build_command: c.buildCommand, output_directory: c.outputDirectory, node_version: "22", production_branch: branch, provider: "devstack-sites",
   };

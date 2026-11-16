@@ -156,6 +156,10 @@ bucket ของ `usage_counters`: `d:YYYYMMDD` = วันตามเวลา
 
 Per-user Environment: secrets the user ticked "Remember" for. PK `(user_id, name)`; `name` is UPPER_SNAKE_CASE (2–64); `secret_enc` is sealed with CREDENTIALS_KEY v2 (HKDF info `env:NAME:user_id`); `provider`, `created_at`, `updated_at`, `last_used_at`. At most 50 entries per user. Only name and dates leave the server (`GET /api/environment`). Code: `src/lib/connections/environment.ts`.
 
+## `environment_variables` (migration 0014)
+
+Per-project secrets for hosted builds and SSR Workers. PK `id`; unique `(project_id, environment, key)`. `environment` is `preview` or `production`. `value_enc` sealed (HKDF kind `env:<project_id>`). At most 32 keys per project per environment. API: `GET/POST /api/projects/:id/env`, `DELETE /api/projects/:id/env/:key` (GET returns names only). Injected into the build container and as `secret_text` bindings on OpenNext Worker upload. Code: `src/lib/projects/project-env.ts`.
+
 ## `project_custom_domains` และ `project_server_bindings` (migration 0024)
 
 Hosting BYO hostname + optional SSR binding config (`schema_version = 24`). Apply remote **ก่อน** deploy Worker ที่เรียก table เหล่านี้ — ดู [CUSTOM-DOMAINS-ROLLOUT.md](../operations/CUSTOM-DOMAINS-ROLLOUT.md).

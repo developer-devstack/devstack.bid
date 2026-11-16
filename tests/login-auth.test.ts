@@ -17,7 +17,7 @@ describe("sign-in state", () => {
     const verifier = "a".repeat(43);
     const { state, cookie } = await issueOAuthState(SECRET, "google", "/templates", verifier);
     const opened = await readOAuthState(state, cookie, SECRET, "google");
-    expect(opened).toEqual({ next: "/templates", verifier });
+    expect(opened).toEqual({ next: "/templates", verifier, link: false });
     expect(await readOAuthState(state, cookie, SECRET, "github")).toBeNull();
     const pub = JSON.parse((await verifyPayload(state, SECRET)) ?? "{}") as { c?: string };
     expect(pub.c).toBeUndefined();
@@ -26,7 +26,7 @@ describe("sign-in state", () => {
   it("allows a missing cookie when the URL state is signed", async () => {
     const { state } = await issueOAuthState(SECRET, "cursor", "/studio");
     const opened = await readOAuthState(state, undefined, SECRET, "cursor");
-    expect(opened).toEqual({ next: "/studio", verifier: null });
+    expect(opened).toEqual({ next: "/studio", verifier: null, link: false });
     expect(await readOAuthState(state, undefined, SECRET, "github")).toBeNull();
     expect(await readOAuthState("not-a-signed-state", undefined, SECRET, "cursor")).toBeNull();
   });
@@ -35,7 +35,7 @@ describe("sign-in state", () => {
     const a = await issueOAuthState(SECRET, "cursor", "/a");
     const b = await issueOAuthState(SECRET, "cursor", "/b");
     expect(await readOAuthState(a.state, b.cookie, SECRET, "cursor")).toBeNull();
-    expect(await readOAuthState(a.state, a.cookie, SECRET, "cursor")).toEqual({ next: "/a", verifier: null });
+    expect(await readOAuthState(a.state, a.cookie, SECRET, "cursor")).toEqual({ next: "/a", verifier: null, link: false });
   });
 
   it("links an anonymous row only before it has a provider", () => {

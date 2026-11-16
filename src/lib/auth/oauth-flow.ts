@@ -26,6 +26,8 @@ interface StateBody {
   n: string;
   r: string;
   c?: string;
+  /** When set, attach GitHub credentials to the current session user without switching accounts. */
+  l?: number;
 }
 
 function parseState(raw: string | null): StateBody | null {
@@ -39,6 +41,7 @@ function parseState(raw: string | null): StateBody | null {
   if (data.v !== 1 || !isAuthProvider(data.p) || typeof data.n !== "string" || typeof data.r !== "string") return null;
   if (!/^[0-9a-f-]{36}$/.test(data.n)) return null;
   if (data.c !== undefined && (typeof data.c !== "string" || data.c.length < 32 || data.c.length > 128)) return null;
+  if (data.l !== undefined && data.l !== 1) return null;
   return data;
 }
 
@@ -49,11 +52,20 @@ function b64url(bytes: Uint8Array): string {
 }
 
 /** Signed URL state, and the cookie value (includes the PKCE verifier when one is passed). */
-export async function issueOAuthState(secret: string, provider: AuthProvider, next: string, verifier?: string): Promise<{ state: string; cookie: string }> {
+export async function issueOAuthState(
+  secret: string,
+  provider: AuthProvider,
+  next: string,
+  verifier?: string,
+  link?: boolean,
+): Promise<{ state: string; cookie: string }> {
   const n = crypto.randomUUID();
-  const pub = JSON.stringify({ v: 1, p: provider, n, r: next });
+  const body: StateBody = { v: 1, p: provider, n, r: next };
+  if (link) body.l = 1;
+  const pub = JSON.stringify(body);
   const state = await signPayload(secret, pub);
-  const cookie = verifier ? await signPayload(secret, JSON.stringify({ v: 1, p: provider, n, r: next, c: verifier })) : state;
+  const cookiePayload = verifier ? { ...body, c: verifier } : body;
+  const cookie = await signPayload(secret, JSON.stringify(cookiePayload));
   return { state, cookie };
 }
 
@@ -69,16 +81,17 @@ export async function readOAuthState(
   cookieState: string | undefined,
   secret: string,
   provider: AuthProvider
-): Promise<{ next: string; verifier: string | null } | null> {
+): Promise<{ next: string; verifier: string | null; link: boolean } | null> {
   const query = parseState(await verifyPayload(queryState, secret));
   if (!query || query.p !== provider) return null;
+  const link = query.l === 1;
   if (!cookieState) {
-    return { next: query.r, verifier: null };
+    return { next: query.r, verifier: null, link };
   }
   const cookie = parseState(await verifyPayload(cookieState, secret));
   if (!cookie) return null;
   if (cookie.p !== provider || query.n !== cookie.n || query.r !== cookie.r) return null;
-  return { next: query.r, verifier: cookie.c ?? null };
+  return { next: query.r, verifier: cookie.c ?? null, link: link || cookie.l === 1 };
 }
 
 export async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
@@ -100,6 +113,13 @@ export function oauthFail(origin: string, secure: boolean, code: string, provide
 
 /** 30 days, the same as `auth_sessions.expires_at`. */
 export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+
+/** Return after linking GitHub to an existing session — session cookie unchanged. */
+export function oauthLinkedRedirect(origin: string, secure: boolean, next: string): Response {
+  const headers = new Headers({ Location: new URL(safeNext(next), origin).toString(), "Cache-Control": "no-store" });
+  headers.append("Set-Cookie", clearCookie(OAUTH_STATE_COOKIE, secure, OAUTH_COOKIE_PATH));
+  return new Response(null, { status: 302, headers });
+}
 
 export function signedInRedirect(origin: string, secure: boolean, next: string, sessionValue: string, status = 302): Response {
   const headers = new Headers({ Location: new URL(safeNext(next), origin).toString(), "Cache-Control": "no-store" });

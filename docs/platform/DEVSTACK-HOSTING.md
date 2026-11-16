@@ -144,5 +144,7 @@ Production GO checklist (owner-approved 2026-11-01):
 | POST | `/api/projects/:id/domains/:domainId/verify` | TXT check + Workers Custom Domain |
 | DELETE | `/api/projects/:id/domains/:domainId` | Remove domain |
 | GET/PUT | `/api/projects/:id/server-bindings` | Optional SSR Worker bindings (`ai`) |
+| GET/POST | `/api/projects/:id/env` | Per-project secrets (`DATABASE_URL`, `AUTH_SECRET`, …) sealed in D1; names only on GET |
+| DELETE | `/api/projects/:id/env/:key` | Remove a secret (`?environment=preview\|production`) |
 
 See [CUSTOM-DOMAINS-HOSTING.md](./CUSTOM-DOMAINS-HOSTING.md).

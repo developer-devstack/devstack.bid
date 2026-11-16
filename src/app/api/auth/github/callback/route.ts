@@ -3,12 +3,13 @@ import { connection } from "next/server";
 import { exchangeCodeWithScope, fetchProfile } from "@/lib/auth/github-api";
 import { GITHUB_SCOPES, grantedScopes } from "@/lib/auth/github-policy";
 import { planSignIn } from "@/lib/auth/link-account";
-import { oauthFail, readOAuthState, signedInRedirect } from "@/lib/auth/oauth-flow";
+import { oauthFail, oauthLinkedRedirect, readOAuthState, signedInRedirect } from "@/lib/auth/oauth-flow";
 import { seal, resolveSealKeys } from "@/lib/connections/credentials";
 import { chatEnv } from "@/lib/chat/config";
 import { OAUTH_STATE_COOKIE, readCookie } from "@/lib/chat/identity";
 import { chatRuntime } from "@/lib/chat/runtime";
-import { saveOAuthAccount } from "@/lib/chat/store";
+import { saveGithubCredentialLink, saveOAuthAccount } from "@/lib/chat/store";
+import { resolveSignedIn } from "@/lib/auth/session";
 import { serverEnv } from "@/lib/server/env";
 import { clientIp } from "@/lib/server/http";
 import { checkRateLimit } from "@/lib/server/rate-limit";
@@ -39,12 +40,26 @@ export async function GET(req: Request) {
       redirectUri: `${url.origin}/api/auth/github/callback`,
     });
     const profile = await fetchProfile(token);
+    const keys = await resolveSealKeys(secret);
+    const scopeGranted = grantedScopes(scope, GITHUB_SCOPES);
+    if (opened.link) {
+      const actor = await resolveSignedIn(req, secret);
+      if (actor.uid && actor.authenticated) {
+        await saveGithubCredentialLink(db, actor.uid, {
+          tokenEnc: await seal(keys, "github", actor.uid, token),
+          scope: scopeGranted,
+        });
+        console.warn(JSON.stringify({ at: "api/auth/github", event: "linked_to_session", login: profile.login, uid: actor.uid }));
+        return oauthLinkedRedirect(url.origin, secure, opened.next);
+      }
+    }
     const plan = await planSignIn(db, req, secret, "github", profile.id);
+    const cred = { tokenEnc: await seal(keys, "github", plan.userId, token), scope: scopeGranted };
     await saveOAuthAccount(
       db,
       plan,
       { provider: "github", subject: profile.id, login: profile.login, name: profile.name, email: profile.email, avatarUrl: profile.avatarUrl },
-      { tokenEnc: await seal(await resolveSealKeys(secret), "github", plan.userId, token), scope: grantedScopes(scope, GITHUB_SCOPES) }
+      cred,
     );
     console.warn(JSON.stringify({ at: "api/auth/github", event: "linked", login: profile.login }));
     return signedInRedirect(url.origin, secure, opened.next, await issueSession(db, plan.userId, secret));

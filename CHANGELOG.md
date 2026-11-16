@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Project environment secrets:** `GET/POST /api/projects/:id/env` and `DELETE /api/projects/:id/env/:key` store sealed values in D1 (`environment_variables`). Names only on GET. Values feed the build container and SSR Worker `secret_text` bindings on deploy. UI on the project page (**Environment secrets**).
+
+### Fixed
+- **Connect GitHub while signed in with Cursor:** `link=1` on connect OAuth attaches `github_credentials` to the current session instead of creating a new GitHub-primary user.
+- **Cursor import metadata:** persist `repo_full_name` on `projects` and optional `repo_id` on `project_connections`; `POST /api/projects/:id/sync-cursor` re-pulls Origin tarball and queues production build.
+
+### Added
 - **Import from Cursor (Origin):** after **Sign in with Cursor**, `/new` → **Import Cursor** lists repos granted to the DevStack Origin app (`GET /api/cursor/repositories`), snapshots via Origin tarball to R2, and queues a production build (`POST /api/projects/import-cursor`). Stores `installation_id` in D1 (`cursor_installations`, migration `0025`). Requires `CURSOR_APP_SIGNING_KEY` (Ed25519 app signing key) on the Worker in addition to `CURSOR_APP_ID`. Cursor install scope now requests `repository:contents:read` for deploy snapshots.
 
 ### Fixed

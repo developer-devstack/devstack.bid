@@ -12,7 +12,7 @@
  * Live URLs need the *.devstack.bid wildcard. Until SITES_DNS_READY=1 the URL is reported Blocked.
  */
 import type { D1Like } from "@/lib/chat/store";
-import { loadGithubToken, open, type SealKeys } from "@/lib/connections/credentials";
+import { loadGithubToken, type SealKeys } from "@/lib/connections/credentials";
 import type { ProjectRow } from "@/lib/connections/projects";
 import { ServiceError } from "@/lib/connections/github-service";
 import { getBranchSha } from "@/lib/auth/github-api";
@@ -22,6 +22,7 @@ import { makeCustomDomainSync } from "@/lib/hosting/custom-domains";
 import { promoteProduction, publishPreview, publishServer, writeSite } from "@/lib/hosting/publish";
 import { serverBindingsFeatureOn } from "@/lib/hosting/config";
 import { loadProjectServerBindings, workerBindingsFromSpec } from "@/lib/hosting/server-bindings";
+import { loadProjectEnvPlain, workerSecretBindingsFromEnv } from "@/lib/projects/project-env";
 import { getProjectSourceTar, sourceTarKey } from "@/lib/hosting/sources";
 import { CfApiError, deployServerWorker, readServerBundle, serverWorkerName, type CfApi } from "@/lib/hosting/server-worker";
 import { sanitizeLog } from "@/lib/deploy/sanitize";
@@ -153,13 +154,7 @@ export async function startContainerBuild(
 }
 
 async function loadEnvVars(db: D1Like, keys: SealKeys, job: BuildJobRow): Promise<Record<string, string>> {
-  const rows = await db.prepare("SELECT key, value_enc FROM environment_variables WHERE project_id = ?1 AND user_id = ?2 AND environment = ?3").bind(job.project_id, job.user_id, job.environment).all<{ key: string; value_enc: string }>().catch(() => ({ results: [] as { key: string; value_enc: string }[] }));
-  const out: Record<string, string> = {};
-  for (const r of rows.results ?? []) {
-    const v = await open(keys, `env:${job.project_id}`, job.user_id, r.value_enc).catch(() => null);
-    if (v) out[r.key] = v.value;
-  }
-  return out;
+  return loadProjectEnvPlain(db, keys, job.project_id, job.user_id, job.environment);
 }
 
 export type RunOutcome = "done" | "skipped" | { retryInSeconds: number };
@@ -331,7 +326,7 @@ export async function runContainerJob(db: D1Like, keys: SealKeys, b: BuildBindin
       // Name from ids (not the reusable slug); previews get their own Worker so they never replace production.
       const worker = await serverWorkerName(project.id, production ? null : dep.id);
       const bindingSpec = serverBindingsFeatureOn() ? await loadProjectServerBindings(db, project.id) : {};
-      const extraBindings = workerBindingsFromSpec(bindingSpec);
+      const extraBindings = [...workerBindingsFromSpec(bindingSpec), ...workerSecretBindingsFromEnv(env)];
       await log.line(`Server build detected: deploying the project Worker (${bundle.assets.length} assets).`);
       try {
         await deployServerWorker(b.cfApi, worker, bundle, project.id, { extraBindings });

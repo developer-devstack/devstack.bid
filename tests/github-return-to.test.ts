@@ -8,8 +8,8 @@ describe("GitHub connect return path", () => {
   it("keeps /new and its mode query", () => {
     expect(safeNext("/new")).toBe("/new");
     expect(safeNext("/new?mode=template")).toBe("/new?mode=template");
-    expect(githubConnectHref("/new?mode=template")).toBe("/api/auth/github?next=%2Fnew%3Fmode%3Dtemplate");
-    expect(githubConnectHref("/new", "public")).toBe("/api/auth/github?scope=public&next=%2Fnew");
+    expect(githubConnectHref("/new?mode=template")).toBe("/api/auth/github?link=1&next=%2Fnew%3Fmode%3Dtemplate");
+    expect(githubConnectHref("/new", "public")).toBe("/api/auth/github?link=1&scope=public&next=%2Fnew");
   });
 
   it("rejects open redirects and loops", () => {
