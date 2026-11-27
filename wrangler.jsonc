@@ -31,7 +31,7 @@
   // R2 bucket for chat stream persistence (streamed text + thinking steps per turn). Owner enabled R2
   // 2026-10-15; the bucket must exist before the next deploy (`wrangler r2 bucket create nvx-chat-streams`).
   "r2_buckets": [
-    { "binding": "CHAT_STREAMS", "bucket_name": "arn:aws:s3express:us-east-1:313313524777:bucket/amznbugget--use1-az4--x-s3" }
+    { "binding": "CHAT_STREAMS", "bucket_name": "https://zrvmwdydzi9szfda.public.blob.vercel-storage.com" }
   ],
   // Build executor bindings (Containers, Durable Object, Queue, build R2) are NOT here, so a hotfix
   // deploy never needs Docker. They live in release/build-bindings.jsonc and are merged into
