@@ -1,0 +1,53 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "nextjs"
+    },
+    "orchestrator": {
+      "root": "agents/orchestrator",
+      "runtime": "python"
+    },
+    "my-button": {
+      "root": "sandbox-examples/my-button",
+      "framework": "create-react-app"
+    },
+    "studio": {
+      "root": "studio",
+      "framework": "vite"
+    },
+    "collab-workspace": {
+      "root": "template-projects/collab-workspace",
+      "framework": "nextjs"
+    },
+    "nextjs-ai-chat": {
+      "root": "template-projects/nextjs-ai-chat",
+      "framework": "nextjs"
+    },
+    "nextjs-dashboard": {
+      "root": "template-projects/nextjs-dashboard",
+      "framework": "nextjs"
+    },
+    "react-admin-tool": {
+      "root": "template-projects/react-admin-tool",
+      "framework": "vite"
+    },
+    "static-website": {
+      "root": "template-projects/static-website",
+      "framework": "vite"
+    },
+    "vite-react-game": {
+      "root": "template-projects/vite-react-game",
+      "framework": "vite"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
+  ]
+}
