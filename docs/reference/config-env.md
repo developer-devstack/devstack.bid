@@ -124,7 +124,7 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 `BUILD_QUEUE` และ `BUILD_CONTAINER` อยู่ใน [`release/build-bindings.jsonc`](../../release/build-bindings.jsonc) เท่านั้น ใช้ตอน `npm run deploy:release` (`-c wrangler.release.jsonc`, ต้องมี Docker) ส่วน AWS S3 bucket/region ใช้ร่วมกันจาก `wrangler.jsonc`; access keys เป็น Worker secrets บนทั้ง `nvx-stack-builder` และ `devstack-sites` ดู [BUILD-EXECUTOR.md](../platform/BUILD-EXECUTOR.md)
 | `CREDENTIALS_KEY` | Secrets Store (`default_secrets_store` `b56dddabe7d74172932cf26f4a2ab03f`, secret `CREDENTIALS_KEY`) | 32 ไบต์ base64 | คีย์เข้ารหัส v2 ของ token ลูกค้า (connections, Environment) โค้ดอ่านด้วย `await env.CREDENTIALS_KEY.get()` ถ้าไม่มี binding จะใช้ Worker secret ชื่อเดียวกัน แล้วค่อยถอยไป v1 ไม่มีสำเนาสำรอง (เจ้าของตัดสินใจ 2026-10-15) ถ้าคีย์หาย ลูกค้าต้องผูกบัญชีใหม่ |
 
-`ASSETS_BUCKET` (R2 bucket `nvx-assets`) **ยังไม่ได้เพิ่ม** เพราะบัญชียังไม่เปิด R2 ขั้นตอนอยู่ที่ [d1-database.md](../operations/d1-database.md) อย่าใส่ binding ก่อนมี bucket จริง เพราะ deploy จะล้ม
+ไฟล์แนบและ object storage ใช้ `AWS_S3_BUCKET` ผ่าน S3 API; ต้องตั้ง `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` และให้ IAM principal ผ่าน bucket policy ก่อนเปิดใช้งาน
 
 ## การตั้งค่าอื่นใน wrangler.jsonc
 
@@ -134,7 +134,7 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 
 | ชื่อ | ใช้กับ | หมายเหตุ |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | wrangler (deploy, secret, rollback) | token เท่านั้น ห้ามพิมพ์/commit สิทธิ์ขั้นต่ำ Workers Scripts: Edit + Account Settings: Read; คำสั่ง `wrangler d1` ต้องมี D1: Edit และ R2 ต้องมี Workers R2 Storage: Edit |
+| `CLOUDFLARE_API_TOKEN` | wrangler (deploy, secret, rollback) | token เท่านั้น ห้ามพิมพ์/commit สิทธิ์ขั้นต่ำ Workers Scripts: Edit + Account Settings: Read; คำสั่ง `wrangler d1` ต้องมี D1: Edit และการเปลี่ยน S3 bucket policy ต้องจำกัดสิทธิ์เฉพาะ IAM principal ของ DevStack |
 | `CLOUDFLARE_ACCOUNT_ID` | wrangler | บัญชี production `2d92bd5b25768fa9093d6adc0a8887fc` (devstack.bid, workers.dev `examplessdk`); บัญชีเดิม `f70d35188a3c56b9781538c73a86e04e` (v0.3.0) |
 | `NODE_ENV` | Next.js | `development` เปิด CSP แบบ dev (`unsafe-eval`, `ws:`) และไม่ส่ง HSTS |
 
