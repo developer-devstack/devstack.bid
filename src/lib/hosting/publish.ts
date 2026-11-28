@@ -1,4 +1,4 @@
-/** Write a build's output to R2 and point hostnames at it (production alias = promote). */
+/** Write a build's output to AWS S3 and point hostnames at it (production alias = promote). */
 import { previewHost, productionHost, PLATFORM_DOMAIN } from "./hostnames";
 import { contentType, objectPath, type R2BucketLike } from "./serve";
 
