@@ -1,10 +1,10 @@
 /**
  * Container build executor. Flow:
  *   import / redeploy / hosted → startContainerBuild (build_jobs + deployments + Queue)
- *   Queue consumer → runContainerJob: claim → container build → artifact → R2 / WfP user Worker
+ *   Queue consumer → runContainerJob: claim → container build → artifact → AWS S3 / WfP user Worker
  *
  * Source modes:
- *   - archive (default for DevStack-hosted projects): R2 `sources/<id>/latest.tar` → POST /source → /build
+ *   - archive (default for DevStack-hosted projects): S3 `sources/<id>/latest.tar` → POST /source → /build
  *     No GitHub clone, token, create, or push.
  *   - github (optional import of an *existing* user repo): clone via user OAuth only; never creates repos.
  *
@@ -63,8 +63,8 @@ export async function buildQuotaRoom(db: D1Like, _kv: KvLike | null, uid: string
 export function missingInfra(b: Partial<BuildBindings> | null | undefined): string[] {
   const m: string[] = [];
   if (!b?.queue) m.push("Queue BUILD_QUEUE");
-  if (!b?.artifacts) m.push("R2 BUILD_ARTIFACTS");
-  if (!b?.sites) m.push("R2 SITES");
+  if (!b?.artifacts) m.push("AWS S3 BUILD_ARTIFACTS");
+  if (!b?.sites) m.push("AWS S3 SITES");
   if (!b?.container) m.push("Container BUILD_CONTAINER");
   return m;
 }
@@ -90,7 +90,7 @@ export async function startContainerBuild(
   const slug = siteSlug(project.slug || project.name);
   if (!slug) throw new ServiceError("invalid", "Project name cannot be used as a site hostname.", 422);
   const archiveMode = !project.repo_full_name || project.source === "cursor_import" || project.source === "hosted";
-  if (archiveMode && !b.sites) throw new ServiceError("blocked", "R2 SITES binding is not provisioned for hosted source builds.", 503);
+  if (archiveMode && !b.sites) throw new ServiceError("blocked", "AWS S3 storage is not configured for hosted source builds.", 503);
 
   // Tier limits apply to every trigger (manual, import, AI turn, webhook): resolved from the user's stable id.
   // Same idempotency key already queued/built (e.g. ai-turn route + webhook for one AI commit): reuse it without spending quota.
