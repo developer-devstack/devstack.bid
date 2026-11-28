@@ -31,6 +31,19 @@ Status 2026-10-22: code complete and tested locally; **not provisioned** (see Bl
   - Worker route: `*.devstack.bid/*` → Worker `devstack-sites` (deploy with `wrangler deploy -c sites-worker/wrangler.jsonc`). The zone already has a route `*.devstack.bid` with no Worker; it must be replaced by (or narrowed to) the route above.
   - Then set `SITES_DNS_READY=1`.
 
+## AWS S3 credentials
+
+Set the bucket vars in both Wrangler configs. The same bucket is shared by the Workers; key namespaces separate chat, builds, sources, and hosted sites. Set credentials as secrets, not `vars`:
+
+```sh
+npx wrangler secret put AWS_ACCESS_KEY_ID --config wrangler.release.jsonc
+npx wrangler secret put AWS_SECRET_ACCESS_KEY --config wrangler.release.jsonc
+npx wrangler secret put AWS_ACCESS_KEY_ID --config sites-worker/wrangler.jsonc
+npx wrangler secret put AWS_SECRET_ACCESS_KEY --config sites-worker/wrangler.jsonc
+```
+
+Add `AWS_SESSION_TOKEN` on both Workers only when using temporary STS credentials. The bucket policy currently grants access only to the SageMaker execution role, so it must also allow the dedicated DevStack IAM principal. Grant `s3:ListBucket` on the bucket ARN and `s3:GetObject`, `s3:PutObject`, and `s3:DeleteObject` on the object ARN. Keep the existing TLS-only deny.
+
 ## Deploy configs (hotfix vs full release)
 - `wrangler.jsonc` (base, **hotfix**): no Containers, Durable Object, or Queue. `npm run deploy:hotfix` (same as `npm run deploy`) never needs Docker. The executor reports the missing bindings (`missingInfra`) and builds stay queued/blocked.
 - `release/build-bindings.jsonc`: the build-executor bindings only. `npm run cf:release-config` merges them over the base into `wrangler.release.jsonc` (generated, committed; `tests/release-config.test.ts` fails if it is stale).
