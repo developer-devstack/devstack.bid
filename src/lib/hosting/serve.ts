@@ -1,6 +1,6 @@
 /**
- * Serve a built static site from R2 by hostname (user-site router, separate Worker).
- * R2 layout: hosts/<label>.json → {"deploymentId": "..."}; sites/<deploymentId>/<path>.
+ * Serve a built static site from AWS S3 by hostname (user-site router, separate Worker).
+ * S3 key layout: hosts/<label>.json → {"deploymentId": "..."}; sites/<deploymentId>/<path>.
  * No cookies, no platform secrets; strict headers so user content cannot frame the platform.
  */
 import { parseHost } from "./hostnames";
