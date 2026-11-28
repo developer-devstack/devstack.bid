@@ -115,13 +115,14 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 | `NVX_FACTORY_LIMITER` | ratelimit (namespace `4714`) | 10 / 60 วินาที | burst ของ `/api/factory/*` |
 | `NVX_STUDIO_LIMITER` | ratelimit (namespace `4715`) | 20 / 60 วินาที | burst ของ `/api/studio/llm/chat` และ `/api/studio/image` (เพิ่มใน v0.8.0-rc, ยังไม่เคย deploy) |
 
-| `CHAT_STREAMS` | R2 bucket `nvx-chat-streams` | — | เก็บข้อความที่สตรีมและขั้นตอน thinking (ไม่รวม reasoning ดิบ) ของแต่ละ turn เป็น `chat/<uid>/<conversationId>/<messageId>.json` ข้อมูลเดิมใน D1 ไม่เปลี่ยน ต้องสร้าง bucket ก่อน deploy: `wrangler r2 bucket create nvx-chat-streams` |
-| `BUILD_ARTIFACTS` | R2 bucket `devstack-build-artifacts` | — | เก็บ log ที่ redact แล้ว (`logs/<jobId>.txt`) และไฟล์ output ของแต่ละ build (`artifacts/<jobId>.tar`) ต้องสร้างก่อน deploy: `wrangler r2 bucket create devstack-build-artifacts` |
-| `SITES` | R2 bucket `devstack-sites` | — | ไฟล์เว็บที่ build แล้ว (`sites/<deploymentId>/…`) และ hostname → deployment (`hosts/<label>.json`) อ่านโดย Worker `devstack-sites` ต้องสร้างก่อน deploy: `wrangler r2 bucket create devstack-sites` |
+| `AWS_S3_BUCKET` | var | ชื่อ S3 bucket | `amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n` | เก็บ chat archives, attachments, build artifacts, source archives และไฟล์เว็บด้วย key prefixes แยกกัน |
+| `AWS_S3_REGION` | var | AWS region | `eu-north-1` | region ของ bucket |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | **secrets** | credentials ของ IAM principal ที่อนุญาต bucket นี้ | ตั้งด้วย `wrangler secret put` บน Worker หลักและ `devstack-sites` | S3 API credentials; ต้องมี `ListBucket` และ `GetObject` / `PutObject` / `DeleteObject` ตาม bucket policy |
+| `AWS_SESSION_TOKEN` | **secret (optional)** | STS session token | ตั้งด้วย `wrangler secret put` หากใช้ temporary credentials | ใช้คู่กับ temporary access key/secret เท่านั้น |
 | `BUILD_QUEUE` | Queue `devstack-build-jobs` | — | คิวงาน build (producer + consumer ใน Worker หลัก, ครั้งละ 1 ข้อความ, พร้อมกันสูงสุด 2) ต้องสร้างก่อน deploy: `wrangler queues create devstack-build-jobs` |
 | `BUILD_CONTAINER` | Durable Object + Container `BuildContainer` | — | 1 container ต่อ 1 build จาก `container/Dockerfile` (max_instances 2) ต้องใช้ Workers Paid และ Docker ตอน deploy |
 
-`BUILD_ARTIFACTS`, `SITES`, `BUILD_QUEUE` และ `BUILD_CONTAINER` อยู่ใน [`release/build-bindings.jsonc`](../../release/build-bindings.jsonc) เท่านั้น (ไม่อยู่ใน `wrangler.jsonc`) ใช้ตอน `npm run deploy:release` (`-c wrangler.release.jsonc`, ต้องมี Docker) ส่วน `npm run deploy:hotfix` ใช้ `wrangler.jsonc` และไม่ต้องมี Docker ดู [BUILD-EXECUTOR.md](../platform/BUILD-EXECUTOR.md)
+`BUILD_QUEUE` และ `BUILD_CONTAINER` อยู่ใน [`release/build-bindings.jsonc`](../../release/build-bindings.jsonc) เท่านั้น ใช้ตอน `npm run deploy:release` (`-c wrangler.release.jsonc`, ต้องมี Docker) ส่วน AWS S3 bucket/region ใช้ร่วมกันจาก `wrangler.jsonc`; access keys เป็น Worker secrets บนทั้ง `nvx-stack-builder` และ `devstack-sites` ดู [BUILD-EXECUTOR.md](../platform/BUILD-EXECUTOR.md)
 | `CREDENTIALS_KEY` | Secrets Store (`default_secrets_store` `b56dddabe7d74172932cf26f4a2ab03f`, secret `CREDENTIALS_KEY`) | 32 ไบต์ base64 | คีย์เข้ารหัส v2 ของ token ลูกค้า (connections, Environment) โค้ดอ่านด้วย `await env.CREDENTIALS_KEY.get()` ถ้าไม่มี binding จะใช้ Worker secret ชื่อเดียวกัน แล้วค่อยถอยไป v1 ไม่มีสำเนาสำรอง (เจ้าของตัดสินใจ 2026-10-15) ถ้าคีย์หาย ลูกค้าต้องผูกบัญชีใหม่ |
 
 `ASSETS_BUCKET` (R2 bucket `nvx-assets`) **ยังไม่ได้เพิ่ม** เพราะบัญชียังไม่เปิด R2 ขั้นตอนอยู่ที่ [d1-database.md](../operations/d1-database.md) อย่าใส่ binding ก่อนมี bucket จริง เพราะ deploy จะล้ม
