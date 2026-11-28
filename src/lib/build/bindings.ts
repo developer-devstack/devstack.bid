@@ -1,5 +1,6 @@
 /** Resolve the build executor bindings from the Worker env (nulls when not provisioned → Blocked). */
 import type { R2BucketLike } from "@/lib/hosting/serve";
+import { createAwsS3Bucket } from "@/lib/storage/aws-s3";
 import type { BuildBindings, ContainerStub, QueueLike } from "./executor";
 
 type Ns = { getByName?(name: string): ContainerStub; idFromName?(n: string): unknown; get?(id: unknown): ContainerStub };
@@ -9,10 +10,11 @@ export function buildBindings(env: Record<string, unknown>): BuildBindings {
   const container = ns
     ? (jobId: string): ContainerStub => (ns.getByName ? ns.getByName(`build-${jobId}`) : ns.get!(ns.idFromName!(`build-${jobId}`)))
     : null;
+  const storage = createAwsS3Bucket(env);
   return {
     queue: (env.BUILD_QUEUE as QueueLike | undefined) ?? null,
-    artifacts: (env.BUILD_ARTIFACTS as R2BucketLike | undefined) ?? null,
-    sites: (env.SITES as R2BucketLike | undefined) ?? null,
+    artifacts: storage,
+    sites: storage,
     container,
     dnsReady: env.SITES_DNS_READY === "1",
     kv: (env.KV as BuildBindings["kv"]) ?? null,
