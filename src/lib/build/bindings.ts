@@ -1,5 +1,4 @@
 /** Resolve the build executor bindings from the Worker env (nulls when not provisioned → Blocked). */
-import type { R2BucketLike } from "@/lib/hosting/serve";
 import { createAwsS3Bucket } from "@/lib/storage/aws-s3";
 import type { BuildBindings, ContainerStub, QueueLike } from "./executor";
 
