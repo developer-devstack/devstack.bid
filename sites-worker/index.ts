@@ -3,7 +3,7 @@
  * Static → R2. SSR → Workers for Platforms DISPATCHER binding (preferred) or legacy workers.dev proxy.
  * Holds no D1 access; its only secret is SITES_PROXY_SECRET (derives per-site proxy keys, never sent to the client).
  */
-import { serveSite, unavailable, type DispatcherLike, type R2BucketLike } from "../src/lib/hosting/serve";
+import { serveSite, unavailable, type DispatcherLike } from "../src/lib/hosting/serve";
 import { proxyKey } from "../src/lib/hosting/server-worker";
 import { createAwsS3Bucket, type AwsS3Env } from "../src/lib/storage/aws-s3";
 
