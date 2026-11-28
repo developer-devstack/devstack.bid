@@ -127,7 +127,7 @@ describe("build executor", () => {
     expect(retry.job.status).toBe("queued");
   });
 
-  it("runs a build: phases, redacted streamed logs (split secrets), R2 artifact + site, Blocked URL until DNS", async () => {
+  it("runs a build: phases, redacted streamed logs (split secrets), AWS S3 artifact + site, Blocked URL until DNS", async () => {
     const token = "gho_" + "Z".repeat(36);
     const db = await setup({ token });
     db.raw.prepare("INSERT INTO environment_variables (id, project_id, user_id, environment, key, value_enc) VALUES ('e1', 'projA-0001', 'userA', 'production', 'API_SECRET', ?)").run(await seal(keys, "env:projA-0001", "userA", "s3cr3t-value-XYZ"));
@@ -245,7 +245,7 @@ describe.runIf(process.env.E2E_BUILD === "1")("e2e: real build of sveltejs/templ
 });
 
 describe("archive mode hosted build (no GitHub)", () => {
-  it("enqueues from R2 sources without a GitHub token or repo", async () => {
+  it("enqueues from S3 sources without a GitHub token or repo", async () => {
     const { putProjectSource } = await import("@/lib/hosting/sources");
     const db = sqliteD1();
     db.raw.exec("INSERT INTO users (id) VALUES ('userA'); INSERT INTO projects (id, user_id, name, slug, source, provider, output_directory) VALUES ('proj-hosted-1', 'userA', 'hosted', 'hosted-app', 'hosted', 'devstack-sites', 'dist')");
