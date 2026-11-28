@@ -29,9 +29,9 @@
   // D1 (SQLite) for chat history. Created 2026-10-11 (region WNAM). Schema: migrations/ and
   // docs/reference/d1-schema.md. Apply with `npm run db:migrate:remote` (approval required).
   // AWS S3 storage shared by chat archives and DevStack deployments. Credentials are Worker secrets.
-  // Build executor bindings (Containers, Durable Object, Queue, build R2) are NOT here, so a hotfix
+  // Build executor bindings (Containers, Durable Object, Queue) are NOT here, so a hotfix
   // deploy never needs Docker. They live in release/build-bindings.jsonc and are merged into
-  // wrangler.release.jsonc by `npm run cf:release-config` (used by `npm run deploy:release`).
+  // wrangler.release.jsonc by `npm run cf:release-config` (used by `npm run deploy:release`). AWS S3 bucket/region are shared in vars.
   // CREDENTIALS_KEY (32 random bytes, base64) lives in Cloudflare Secrets Store, not as a Worker secret.
   // Code reads it with `await env.CREDENTIALS_KEY.get()` (src/lib/connections/credentials.ts).
   "secrets_store_secrets": [
