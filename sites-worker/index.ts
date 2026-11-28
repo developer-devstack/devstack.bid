@@ -1,6 +1,6 @@
 /**
  * devstack-sites: the user-site router for *.devstack.bid (separate Worker, never the platform).
- * Static → R2. SSR → Workers for Platforms DISPATCHER binding (preferred) or legacy workers.dev proxy.
+ * Static → AWS S3. SSR → Workers for Platforms DISPATCHER binding (preferred) or legacy workers.dev proxy.
  * Holds no D1 access; its only secret is SITES_PROXY_SECRET (derives per-site proxy keys, never sent to the client).
  */
 import { serveSite, unavailable, type DispatcherLike } from "../src/lib/hosting/serve";
