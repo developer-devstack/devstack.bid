@@ -1,4 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { createAwsS3Bucket, type AwsS3Env } from "@/lib/storage/aws-s3";
 import { resolveSignedIn } from "@/lib/auth/session";
 
 import { chatEnv, chatRuntime, json } from "@/lib/chat/runtime";
@@ -7,19 +8,8 @@ import { clientIp } from "@/lib/server/http";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 
 /**
- * POST /api/chat/attachments  (raw body = the file; headers Content-Type, Content-Length,
- * X-File-Name optional). Max MAX_ATTACHMENT_BYTES (default 10 MB) → 413 above that.
- *
- * Uploads need the R2 binding ASSETS_BUCKET. R2 is not enabled on the account yet, so this route
- * answers 503 `uploads_disabled` after the size check; the UI keeps the attach button disabled.
- * When the bucket exists the file is stored at u/<uid>/pending/<id> and its id is returned
- * (linking it to a message is done by the turn route in a later release).
+ * POST /api/chat/attachments stores approved files in the configured AWS S3 bucket.
  */
-
-interface R2Like {
-  put(key: string, value: ReadableStream | ArrayBuffer, opts?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
-}
-
 const ALLOWED = /^(image\/(png|jpeg|webp|gif)|application\/pdf|text\/(plain|markdown|csv)|application\/json)$/;
 
 export async function POST(req: Request) {
@@ -38,11 +28,12 @@ export async function POST(req: Request) {
   const burst = await checkRateLimit("NVX_CHAT_LIMITER", ip, env.CHAT_BURST_PER_MIN);
   if (!burst.ok) return json({ error: "Too many uploads — wait a minute. / อัปโหลดถี่เกินไป กรุณารอสักครู่", code: "rate_limited" }, 429, { "Retry-After": "60" });
 
-  let bucket: R2Like | undefined;
+  let bucket: ReturnType<typeof createAwsS3Bucket> = null;
   try {
-    bucket = ((await getCloudflareContext({ async: true })).env as unknown as { ASSETS_BUCKET?: R2Like }).ASSETS_BUCKET;
+    const cf = await getCloudflareContext({ async: true });
+    bucket = createAwsS3Bucket(cf.env as unknown as AwsS3Env);
   } catch {
-    bucket = undefined;
+    bucket = null;
   }
   if (!bucket) {
     return json(

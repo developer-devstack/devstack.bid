@@ -33,20 +33,6 @@
       "service": "nvx-stack-builder"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "CHAT_STREAMS",
-      "bucket_name": "nvx-chat-streams"
-    },
-    {
-      "binding": "BUILD_ARTIFACTS",
-      "bucket_name": "devstack-build-artifacts"
-    },
-    {
-      "binding": "SITES",
-      "bucket_name": "devstack-sites"
-    }
-  ],
   "secrets_store_secrets": [
     {
       "binding": "CREDENTIALS_KEY",
@@ -115,6 +101,8 @@
     "STUDIO_MAX_TOKENS": "4000",
     "STUDIO_DAILY_CALLS": "60",
     "STUDIO_GLOBAL_CALLS_PER_DAY": "3000",
+    "AWS_S3_BUCKET": "amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n",
+    "AWS_S3_REGION": "eu-north-1",
     "SITES_DNS_READY": "1",
     "CUSTOM_DOMAINS_ENABLED": "false",
     "SERVER_BINDINGS_ENABLED": "false",

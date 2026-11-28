@@ -115,16 +115,16 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 | `NVX_FACTORY_LIMITER` | ratelimit (namespace `4714`) | 10 / 60 วินาที | burst ของ `/api/factory/*` |
 | `NVX_STUDIO_LIMITER` | ratelimit (namespace `4715`) | 20 / 60 วินาที | burst ของ `/api/studio/llm/chat` และ `/api/studio/image` (เพิ่มใน v0.8.0-rc, ยังไม่เคย deploy) |
 
-| `CHAT_STREAMS` | R2 bucket `nvx-chat-streams` | — | เก็บข้อความที่สตรีมและขั้นตอน thinking (ไม่รวม reasoning ดิบ) ของแต่ละ turn เป็น `chat/<uid>/<conversationId>/<messageId>.json` ข้อมูลเดิมใน D1 ไม่เปลี่ยน ต้องสร้าง bucket ก่อน deploy: `wrangler r2 bucket create nvx-chat-streams` |
-| `BUILD_ARTIFACTS` | R2 bucket `devstack-build-artifacts` | — | เก็บ log ที่ redact แล้ว (`logs/<jobId>.txt`) และไฟล์ output ของแต่ละ build (`artifacts/<jobId>.tar`) ต้องสร้างก่อน deploy: `wrangler r2 bucket create devstack-build-artifacts` |
-| `SITES` | R2 bucket `devstack-sites` | — | ไฟล์เว็บที่ build แล้ว (`sites/<deploymentId>/…`) และ hostname → deployment (`hosts/<label>.json`) อ่านโดย Worker `devstack-sites` ต้องสร้างก่อน deploy: `wrangler r2 bucket create devstack-sites` |
-| `BUILD_QUEUE` | Queue `devstack-build-jobs` | — | คิวงาน build (producer + consumer ใน Worker หลัก, ครั้งละ 1 ข้อความ, พร้อมกันสูงสุด 2) ต้องสร้างก่อน deploy: `wrangler queues create devstack-build-jobs` |
-| `BUILD_CONTAINER` | Durable Object + Container `BuildContainer` | — | 1 container ต่อ 1 build จาก `container/Dockerfile` (max_instances 2) ต้องใช้ Workers Paid และ Docker ตอน deploy |
+| `AWS_S3_BUCKET` | var | ชื่อ bucket | — | `amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n` | ที่เก็บ chat archives, attachments, build artifacts, source archives และไฟล์เว็บ โดยแยก key prefixes |
+| `AWS_S3_REGION` | var | AWS region | — | `eu-north-1` | region ของ bucket |
+| `AWS_ACCESS_KEY_ID` | **secret** | IAM access key ที่มีสิทธิ์ bucket | — | ตั้งด้วย `wrangler secret put` บน Worker หลักและ `devstack-sites` | ใช้ลงชื่อ S3 API requests |
+| `AWS_SECRET_ACCESS_KEY` | **secret** | IAM secret key | — | ตั้งด้วย `wrangler secret put` บน Worker หลักและ `devstack-sites` | ใช้คู่กับ access key; ห้ามใส่ใน vars หรือ commit |
+| `AWS_SESSION_TOKEN` | **secret (optional)** | STS session token | — | ตั้งด้วย `wrangler secret put` หากใช้ temporary credentials | ใช้คู่กับ STS access key/secret เท่านั้น |
 
-`BUILD_ARTIFACTS`, `SITES`, `BUILD_QUEUE` และ `BUILD_CONTAINER` อยู่ใน [`release/build-bindings.jsonc`](../../release/build-bindings.jsonc) เท่านั้น (ไม่อยู่ใน `wrangler.jsonc`) ใช้ตอน `npm run deploy:release` (`-c wrangler.release.jsonc`, ต้องมี Docker) ส่วน `npm run deploy:hotfix` ใช้ `wrangler.jsonc` และไม่ต้องมี Docker ดู [BUILD-EXECUTOR.md](../platform/BUILD-EXECUTOR.md)
+`BUILD_QUEUE` และ `BUILD_CONTAINER` อยู่ใน [`release/build-bindings.jsonc`](../../release/build-bindings.jsonc) เท่านั้น ใช้ตอน `npm run deploy:release` (`-c wrangler.release.jsonc`, ต้องมี Docker) ส่วน AWS S3 bucket/region ใช้ร่วมกันจาก `wrangler.jsonc`; access keys เป็น Worker secrets บนทั้ง `nvx-stack-builder` และ `devstack-sites` ดู [BUILD-EXECUTOR.md](../platform/BUILD-EXECUTOR.md)
 | `CREDENTIALS_KEY` | Secrets Store (`default_secrets_store` `b56dddabe7d74172932cf26f4a2ab03f`, secret `CREDENTIALS_KEY`) | 32 ไบต์ base64 | คีย์เข้ารหัส v2 ของ token ลูกค้า (connections, Environment) โค้ดอ่านด้วย `await env.CREDENTIALS_KEY.get()` ถ้าไม่มี binding จะใช้ Worker secret ชื่อเดียวกัน แล้วค่อยถอยไป v1 ไม่มีสำเนาสำรอง (เจ้าของตัดสินใจ 2026-10-15) ถ้าคีย์หาย ลูกค้าต้องผูกบัญชีใหม่ |
 
-`ASSETS_BUCKET` (R2 bucket `nvx-assets`) **ยังไม่ได้เพิ่ม** เพราะบัญชียังไม่เปิด R2 ขั้นตอนอยู่ที่ [d1-database.md](../operations/d1-database.md) อย่าใส่ binding ก่อนมี bucket จริง เพราะ deploy จะล้ม
+ไฟล์แนบและ object storage ใช้ `AWS_S3_BUCKET` ผ่าน S3 API; ต้องตั้ง `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` และให้ IAM principal ผ่าน bucket policy ก่อนเปิดใช้งาน
 
 ## การตั้งค่าอื่นใน wrangler.jsonc
 
@@ -134,7 +134,7 @@ Studio (`/studio`) ไม่มี secret ของตัวเอง ใช้ 
 
 | ชื่อ | ใช้กับ | หมายเหตุ |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | wrangler (deploy, secret, rollback) | token เท่านั้น ห้ามพิมพ์/commit สิทธิ์ขั้นต่ำ Workers Scripts: Edit + Account Settings: Read; คำสั่ง `wrangler d1` ต้องมี D1: Edit และ R2 ต้องมี Workers R2 Storage: Edit |
+| `CLOUDFLARE_API_TOKEN` | wrangler (deploy, secret, rollback) | token เท่านั้น ห้ามพิมพ์/commit สิทธิ์ขั้นต่ำ Workers Scripts: Edit + Account Settings: Read; คำสั่ง `wrangler d1` ต้องมี D1: Edit และการเปลี่ยน S3 bucket policy ต้องจำกัดสิทธิ์เฉพาะ IAM principal ของ DevStack |
 | `CLOUDFLARE_ACCOUNT_ID` | wrangler | บัญชี production `2d92bd5b25768fa9093d6adc0a8887fc` (devstack.bid, workers.dev `examplessdk`); บัญชีเดิม `f70d35188a3c56b9781538c73a86e04e` (v0.3.0) |
 | `NODE_ENV` | Next.js | `development` เปิด CSP แบบ dev (`unsafe-eval`, `ws:`) และไม่ส่ง HSTS |
 

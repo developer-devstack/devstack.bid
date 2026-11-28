@@ -11,7 +11,7 @@ No push, deploy, remote migration, DNS or production change was made.
 | Runtime | Node 22 (CI `setup-node 22`), Next.js 16.4.0 App Router, React 19, TypeScript 5.x, Vitest |
 | Hosting | Cloudflare Workers via `@opennextjs/cloudflare` (`open-next.config.ts`, `scripts/patch-opennext.mjs` postinstall patch + `check-opennext-patch.mjs`) |
 | wrangler.jsonc | Worker `nvx-stack-builder`, custom domains `devstack.bid`/`www`, `preview_urls: false`, `workers_dev: true` |
-| Bindings | `DB` (D1 `nvx-db`, 12 migrations), `CHAT_STREAMS` (R2 `nvx-chat-streams`), `CREDENTIALS_KEY` (Secrets Store), `AI`, `ASSETS`, `WORKER_SELF_REFERENCE`, 5 rate limiters. **No Queues, no Durable Objects, no Containers, no R2 bucket for build artifacts.** |
+| Bindings | `DB` (D1 `nvx-db`, 12 migrations), AWS S3 bucket `amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n` (`eu-north-1`), `CREDENTIALS_KEY` (Secrets Store), `AI`, `ASSETS`, `WORKER_SELF_REFERENCE`, 5 rate limiters. **No Queues, no Durable Objects, no Containers.** Build release uses AWS S3 when provisioned. |
 | CI | `.github/workflows/ci.yml`: lint, typecheck, test, docs:check, `next build` on push to main + PRs. No deploy, no secrets. `jekyll-gh-pages.yml` unrelated. |
 
 ## 2. What already exists (read from code)

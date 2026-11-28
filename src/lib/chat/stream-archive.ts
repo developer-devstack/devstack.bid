@@ -1,7 +1,7 @@
 import type { UiEvent } from "./events";
 
 /**
- * Chat stream persistence to R2 (binding CHAT_STREAMS). D1 keeps the existing messages exactly as before;
+ * Chat stream persistence in the configured AWS S3 bucket. D1 keeps the existing messages exactly as before;
  * this adds the streamed reply and thinking steps of each turn as one JSON object:
  *   chat/<uid>/<conversationId>/<messageId>.json
  * Consecutive `delta` events are merged so the object stays small; `reasoning` activities are dropped

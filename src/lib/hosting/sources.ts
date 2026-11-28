@@ -1,5 +1,5 @@
 /**
- * Project source archives on R2 (SITES or BUILD_ARTIFACTS).
+ * Project source archives in the shared AWS S3 bucket (SITES / BUILD_ARTIFACTS prefixes).
  * DevStack hosting keeps source of truth here — never creates GitHub repos or pushes.
  *
  * Layout:
