@@ -5,9 +5,10 @@
  */
 import { serveSite, unavailable, type DispatcherLike, type R2BucketLike } from "../src/lib/hosting/serve";
 import { proxyKey } from "../src/lib/hosting/server-worker";
+import { createAwsS3Bucket, type AwsS3Env } from "../src/lib/storage/aws-s3";
 
-type Env = {
-  SITES: R2BucketLike;
+type Env = AwsS3Env & {
+
   DISPATCHER?: DispatcherLike;
   PLATFORM_DOMAIN?: string;
   WORKERS_SUBDOMAIN?: string;
@@ -24,7 +25,9 @@ export default {
       return Response.redirect(u.toString(), 301);
     }
     try {
-      return await serveSite(req, env.SITES, domain, {
+      const storage = createAwsS3Bucket(env);
+      if (!storage) return unavailable(503);
+      return await serveSite(req, storage, domain, {
         dispatcher: env.DISPATCHER,
         // Legacy fallback only when the dispatcher binding is absent.
         workersSubdomain: env.DISPATCHER ? undefined : env.WORKERS_SUBDOMAIN,
