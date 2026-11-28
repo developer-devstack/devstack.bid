@@ -88,8 +88,9 @@ export default {
     );
     ctx.waitUntil(cleanupDeviceCodes(env.DB).catch(() => undefined)); // expired CLI device codes
     // Old preview server Workers (only when server builds are configured; strict name + owner tag checks inside).
-    const cf = buildBindings(env as unknown as Record<string, unknown>).cfApi;
-    if (cf) ctx.waitUntil(cleanupPreviewWorkers(cf, { bucket: (env as unknown as { SITES?: import("@/lib/hosting/serve").R2BucketLike }).SITES ?? null }).then((d) => { if (d.length) console.log(JSON.stringify({ at: "preview-cleanup", deleted: d.length })); }).catch((e) => console.warn(JSON.stringify({ at: "preview-cleanup", error: String((e as Error)?.message ?? "error").slice(0, 60) }))));
+    const bb = buildBindings(env as unknown as Record<string, unknown>);
+    const cf = bb.cfApi;
+    if (cf) ctx.waitUntil(cleanupPreviewWorkers(cf, { bucket: bb.sites }).then((d) => { if (d.length) console.log(JSON.stringify({ at: "preview-cleanup", deleted: d.length })); }).catch((e) => console.warn(JSON.stringify({ at: "preview-cleanup", error: String((e as Error)?.message ?? "error").slice(0, 60) }))));
 
   },
 };
