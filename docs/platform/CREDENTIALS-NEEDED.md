@@ -8,7 +8,7 @@ Nothing below has been created. Values must be entered by the owner directly (wr
 | 2 | `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_CLIENT_ID/SECRET` | Sign installation tokens, verify webhooks | M1/M5 | Secrets Store |
 | 3 | Cloudflare **Queues** binding `BUILD_JOBS` (+ DLQ) | Build job dispatch/retry | M2 | Infra, Workers Paid |
 | 4 | Cloudflare **Containers** builder image + Durable Object class | Isolated install/build | M2 | Infra + spend approval |
-| 5 | **R2 bucket** `devstack-build-artifacts` (lifecycle: delete after N days) | Build output + full logs | M2 | Infra |
+| 5 | AWS S3 bucket `amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n` + dedicated DevStack IAM principal | Build output + logs | M2 | AWS + Worker secrets |
 | 6 | Test Cloudflare account + scoped API token (Workers Scripts: Edit, Account Settings: Read) for **staging integration tests** | Real provider tests, not mocks | M2–M3 | Credential (test only) |
 | 7 | Test GitHub account/org with a public and a private sample repo | Import + webhook E2E | M1, M5 | Test fixture |
 | 8 | Staging Worker (e.g. `nvx-stack-builder-staging`, separate D1 `nvx-db-staging`) | Run E2E without touching production | M1+ | Infra |
