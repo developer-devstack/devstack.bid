@@ -1,4 +1,4 @@
-# Build executor (Milestone 2): Containers + Queue + R2
+# Build executor (Milestone 2): Containers + Queue + AWS S3
 
 > Product path for Deploy / Retry (default): see [DEVSTACK-HOSTING.md](./DEVSTACK-HOSTING.md). User Cloudflare is optional.
 
@@ -7,7 +7,7 @@ Status 2026-10-22: code complete and tested locally; **not provisioned** (see Bl
 ## Flow
 1. `POST /api/projects/import` (or `POST /api/projects/:id/builds`) → `startContainerBuild`: daily cap check, commit pinned from the branch, `build_jobs` row (`executor = cf-container`), `deployments` row (`target = devstack-sites`), message on `BUILD_QUEUE`.
 2. Queue consumer (`custom-worker.ts` `queue()`) → `runContainerJob`: `claimWithCap` (max 2 running, conditional UPDATE) → container `build-<jobId>` `POST /build` → NDJSON phases (`installing` → `building` → `uploading`) and log chunks → `createLogStream` (line-buffered, redacted) → `build_events` + `logs/<jobId>.txt` in R2.
-3. `GET /artifact` (tar of the output dir) → `artifacts/<jobId>.tar` → files → `SITES` bucket `sites/<deploymentId>/…` → hostname aliases `hosts/<label>.json`.
+3. `GET /artifact` (tar of the output dir) → `artifacts/<jobId>.tar` → files → AWS S3 `sites/<deploymentId>/…` → hostname aliases `hosts/<label>.json`.
 4. Production builds also move `<slug>.devstack.bid` (promote). Previews get `<slug>-<shortid>.devstack.bid`.
 5. Cancel: `requestCancel` → heartbeat watchdog (10 s) → container `/cancel` (process-group SIGTERM, then SIGKILL) + AbortController on the `/build` fetch so a hung stream cannot pin the job. 15-minute outer hard limit → `timed_out` (Thai user message; quota excluded). Inside the container: install ≤8 min, build ≤12 min, and a 4-minute no-log stall kill for OpenNext/esbuild/workerd hangs. **OpenNext:** if `package.json` has Next **16.4.x** and `@opennextjs/cloudflare` **&lt;1.20.12**, the build workspace bumps the adapter (16.4.5+ → **1.20.16**, 16.4.1–4 → **1.20.15**); after `opennextjs-cloudflare` build, the server fails if `preview-props.json` is not inlined; after `wrangler deploy --dry-run`, **`wrangler dev --local`** runs a **GET /** smoke (timeout, fail on 5xx). Cron sweeper unchanged (building phase heartbeat ≤14 min).
 
@@ -25,16 +25,16 @@ Status 2026-10-22: code complete and tested locally; **not provisioned** (see Bl
 
 ## Blocked (needs the owner / infrastructure)
 - **Container image**: built and verified locally (see Verified). Pushing it happens only as part of `npm run deploy:release`, which needs a GO.
-- **Queue / R2 buckets** not created yet: `wrangler queues create devstack-build-jobs`, `wrangler r2 bucket create devstack-build-artifacts`, `wrangler r2 bucket create devstack-sites`.
+- **AWS S3 access**: bucket `amazon-sagemaker-313313524777-eu-north-1-40y3fau5lyj53n` in `eu-north-1` is configured. Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (and optional `AWS_SESSION_TOKEN`) as secrets on both Workers. The bucket policy must allow the chosen IAM principal `s3:ListBucket` on the bucket and `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` on its objects. The current policy only allows the SageMaker execution role.
 - **Wildcard DNS + route** (the API token has no Zone DNS permission):
   - DNS: `AAAA  *  100::  proxied` in zone `devstack.bid` (apex, `www` and all other records unchanged).
   - Worker route: `*.devstack.bid/*` → Worker `devstack-sites` (deploy with `wrangler deploy -c sites-worker/wrangler.jsonc`). The zone already has a route `*.devstack.bid` with no Worker; it must be replaced by (or narrowed to) the route above.
   - Then set `SITES_DNS_READY=1`.
 
 ## Deploy configs (hotfix vs full release)
-- `wrangler.jsonc` (base, **hotfix**): no Containers, Durable Object, Queue or build R2. `npm run deploy:hotfix` (same as `npm run deploy`) never needs Docker. The executor reports the missing bindings (`missingInfra`) and builds stay queued/blocked.
+- `wrangler.jsonc` (base, **hotfix**): no Containers, Durable Object, or Queue. `npm run deploy:hotfix` (same as `npm run deploy`) never needs Docker. The executor reports the missing bindings (`missingInfra`) and builds stay queued/blocked.
 - `release/build-bindings.jsonc`: the build-executor bindings only. `npm run cf:release-config` merges them over the base into `wrangler.release.jsonc` (generated, committed; `tests/release-config.test.ts` fails if it is stale).
-- `npm run deploy:release` = regenerate + `opennextjs-cloudflare deploy -c wrangler.release.jsonc`. Needs Docker plus the Queue and buckets above.
+- `npm run deploy:release` = regenerate + `opennextjs-cloudflare deploy -c wrangler.release.jsonc`. Needs Docker, the Queue, and AWS S3 credentials/policy above.
 - After the first release deploy (DO migration `v1-build-container` applied), prefer `deploy:release` for later deploys. A hotfix deploy keeps `BuildContainer` exported, so it does not delete the class, but it removes the bindings until the next release deploy.
 
 ## Verified
