@@ -1,5 +1,5 @@
 {
-  // User-site router: *.devstack.bid → R2 static + WfP dispatcher for SSR.
+  // User-site router: *.devstack.bid → AWS S3 static + WfP dispatcher for SSR.
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "devstack-sites",
   "main": "index.ts",
